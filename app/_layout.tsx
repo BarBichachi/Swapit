@@ -6,11 +6,13 @@ import 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useColorScheme } from '@/components/useColorScheme';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Slot, useNavigation } from 'expo-router';
+import { Slot } from 'expo-router';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { Ionicons } from '@expo/vector-icons';
+import { Drawer } from 'expo-router/drawer';
+import { useRouter } from 'expo-router';
 
-const Drawer = createDrawerNavigator();
+
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -49,54 +51,47 @@ function CustomDrawerContent() {
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  const navigation = useNavigation();
+  const router = useRouter();
 
-  return (
+   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Drawer.Navigator
-        drawerContent={() => <CustomDrawerContent />}
-        screenOptions={{
+      <Drawer
+        screenOptions={({ navigation }) => ({
+          headerTitle: 'Swapit',
+          headerTitleAlign: 'center',
+          drawerStyle: { width: 250 },
+          swipeEnabled: true,
           drawerPosition: 'right',
+          drawerType: 'front',
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
-              accessibilityLabel="Toggle drawer"
-              style={styles.hamburgerContainer}
+              onPress={() => router.push('/profile')}
+              style={styles.iconContainer}
+              accessibilityLabel="Go to profile"
             >
-            <Ionicons name="person-circle-outline" size={40} color="black" />
+              <Ionicons name="person-circle-outline" size={28} color="black" />
             </TouchableOpacity>
           ),
-          headerTitle: 'Swapit',
-        }}
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => navigation.dispatch(DrawerActions.toggleDrawer())}
+              style={styles.iconContainer}
+              accessibilityLabel="Toggle drawer"
+            >
+              <Ionicons name="menu" size={28} color="black" />
+            </TouchableOpacity>
+          ),
+        })}
       >
-        <Drawer.Screen name="index" component={Slot} />
-      </Drawer.Navigator>
+        {/* No Drawer.Screen needed — Expo Router will handle files inside /app automatically */}
+      </Drawer>
     </ThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#f8f8f8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#ddd',
-  },
-  hamburgerContainer: {
-    padding: 8,
-  },
-  hamburger: {
-    fontSize: 24,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 16,
+  iconContainer: {
+    paddingHorizontal: 16,
   },
   drawer: {
     flex: 1,

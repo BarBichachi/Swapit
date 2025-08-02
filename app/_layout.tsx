@@ -68,6 +68,27 @@ export default function RootLayout() {
             ),
           }}
         />
+        <Drawer.Screen
+          name="(auth)/signup"
+          options={{
+            title: "Sign Up",
+            drawerIcon: ({ size, color }) => (
+              <Ionicons name="person-add-outline" size={size} color={color} />
+            ),
+          }}
+        />
+        <Drawer.Screen
+          name="(auth)/login"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+        <Drawer.Screen
+          name="(auth)/callback"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
       </Drawer>
     </>
   );

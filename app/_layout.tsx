@@ -80,7 +80,10 @@ export default function RootLayout() {
         <Drawer.Screen
           name="(auth)/login"
           options={{
-            drawerItemStyle: { display: "none" },
+            title: "Login",
+            drawerIcon: ({ size, color }) => (
+              <Ionicons name="log-in-outline" size={size} color={color} />
+            ),
           }}
         />
         <Drawer.Screen

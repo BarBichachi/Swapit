@@ -117,6 +117,15 @@ export default function SignupPage() {
   return (
     <div className="form-container">
       <h1 className="form-title">Create Your Account</h1>
+      <div className="text-link">
+        Already have an account?{" "}
+        <span
+          className="text-link-action"
+          onClick={() => router.push("/(auth)/login")}
+        >
+          Sign in
+        </span>
+      </div>
 
       <form onSubmit={handleSubmit}>
         <Input
@@ -124,9 +133,9 @@ export default function SignupPage() {
           placeholder="First Name"
           value={form.firstName}
           onChange={handleChange}
-          className={
-            emptyFields.has("firstName") ? "form-input-error" : "form-input"
-          }
+          className={`form-input ${
+            emptyFields.has("firstName") ? "form-input-error" : ""
+          }`}
         />
 
         <Input

@@ -1,3 +1,4 @@
+import { Ticket } from "@/types/ticket";
 import { useEffect, useRef, useState } from "react";
 import {
   Animated,
@@ -14,12 +15,8 @@ const cardMargin = 12;
 const cardsPerRow = screenWidth < 500 ? 2 : screenWidth < 900 ? 3 : 4;
 const cardWidth = (screenWidth - (cardsPerRow + 1) * cardMargin) / cardsPerRow;
 
-interface TicketCardProps {
-  eventTitle: string;
-  date: string;
-  price: number;
-  quantity: number;
-  imageUrl?: string;
+interface TicketCardProps extends Ticket {
+  onPress: () => void;
 }
 
 export default function TicketCard({
@@ -28,6 +25,7 @@ export default function TicketCard({
   price,
   quantity,
   imageUrl,
+  onPress,
 }: TicketCardProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -86,18 +84,22 @@ export default function TicketCard({
         onPressOut={() => setIsPressed(false)}
         onHoverIn={() => setIsHovered(true)}
         onHoverOut={() => setIsHovered(false)}
+        onPress={onPress}
         style={{ flex: 1 }}
       >
         {/* Square image */}
         <View style={{ padding: 8 }}>
           <Image
-            source={imageUrl ? { uri: imageUrl } : placeholderImage}
+            source={
+              typeof imageUrl === "string" && imageUrl.trim().length > 0
+                ? { uri: imageUrl }
+                : placeholderImage
+            }
             style={{
               width: "100%",
               height: cardWidth * 0.9,
               resizeMode: "cover",
-              borderTopLeftRadius: 10,
-              borderTopRightRadius: 10,
+              borderRadius: 10,
             }}
           />
         </View>

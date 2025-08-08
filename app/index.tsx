@@ -1,18 +1,14 @@
+import Dropdown from "@/components/Dropdown";
+import Input from "@/components/Input";
+import { useTickets } from "@/hooks/useTickets";
+
 import TicketCard from "@/components/TicketCard";
 import TicketDetailsModal from "@/components/TicketDetailsModal";
-import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import "./styles.css";
 
 const styles = StyleSheet.create({
@@ -31,69 +27,70 @@ const styles = StyleSheet.create({
 export default function HomePage() {
   const router = useRouter();
 
-  const [userName, setUserName] = useState("Bar");
-  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortOption, setSortOption] = useState<
+    "price_asc" | "price_desc" | "date_asc" | "date_desc" | "none"
+  >("none");
+  const [filterOption, setFilterOption] = useState<"all" | "available_only">(
+    "all"
+  );
+  const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
+  const [sortOpen, setSortOpen] = useState(false);
+
+  const sortOptions = [
+    { value: "none", label: "Default" },
+    { value: "price_asc", label: "Price (lowest)" },
+    { value: "price_desc", label: "Price (highest)" },
+    { value: "date_asc", label: "Date (earliest)" },
+    { value: "date_desc", label: "Date (latest)" },
+  ];
+
+  const { tickets, userName } = useTickets();
 
   useEffect(() => {
-    const fetchTickets = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        setUserName(user?.user_metadata?.first_name ?? "Bar");
+    // Filter and sort tickets based on search, sort, and filter options
+    let updated = [...tickets];
 
-        const { data, error } = await supabase
-          .from("tickets")
-          .select(
-            `
-            id,
-            current_price,
-            quantity_available,
-            event_id,
-            events:events (
-              name,
-              datetime,
-              image_url
-            )
-          `
-          )
-          .eq("status", "active");
+    // 🔍 Search by event title
+    if (searchTerm.trim()) {
+      updated = updated.filter((t) =>
+        t.eventTitle.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
 
-        if (error) return;
+    // ⚙️ Filter
+    if (filterOption === "available_only") {
+      updated = updated.filter((t) => t.quantity > 0);
+    }
 
-        const formattedTickets = (data ?? []).map((t) => {
-          const event = Array.isArray(t.events) ? t.events[0] : t.events;
+    // 🔃 Sort
+    switch (sortOption) {
+      case "price_asc":
+        updated.sort((a, b) => a.price - b.price);
+        break;
+      case "price_desc":
+        updated.sort((a, b) => b.price - a.price);
+        break;
+      case "date_asc":
+        updated.sort((a, b) => (a.date < b.date ? -1 : 1));
+        break;
+      case "date_desc":
+        updated.sort((a, b) => (a.date > b.date ? -1 : 1));
+        break;
+    }
 
-          return {
-            id: t.id,
-            eventTitle: event?.name ?? "Unknown",
-            date: event?.datetime
-              ? new Date(event.datetime).toLocaleDateString("en-GB")
-              : "TBD",
-            price: t.current_price,
-            quantity: t.quantity_available,
-            imageUrl: event?.image_url
-              ? supabase.storage
-                  .from("event-images")
-                  .getPublicUrl(event.image_url).data.publicUrl
-              : undefined,
-          };
-        });
-
-        setTickets(formattedTickets);
-      } catch (err) {
-        // Optionally log to monitoring service
-      }
-    };
-
-    fetchTickets();
-  }, []);
+    setFilteredTickets(updated);
+  }, [tickets, searchTerm, filterOption, sortOption]);
 
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView style={{ padding: 16 }}>
+    <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
+      <ScrollView
+        style={{ padding: 16 }}
+        contentContainerStyle={{ zIndex: 0, position: "relative" }}
+        onScrollBeginDrag={() => setSortOpen(false)}
+      >
         {/* Welcome Section */}
         <View style={{ alignItems: "center", marginBottom: 16 }}>
           <Text style={{ fontSize: 22, fontWeight: "600" }}>
@@ -112,29 +109,54 @@ export default function HomePage() {
               justifyContent: "center",
             }}
           >
-            <TextInput
+            <Input
               placeholder="Search..."
-              style={{
-                borderWidth: 1,
-                borderColor: "#ccc",
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderRadius: 8,
-                width: 200,
-              }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="form-input"
             />
 
-            <Pressable style={styles.button}>
-              <Text>Sort ▼</Text>
-            </Pressable>
+            {/* Sort Dropdown */}
+            <View style={{ position: "relative", zIndex: 999 }}>
+              <Pressable
+                onPress={() => setSortOpen((prev) => !prev)}
+                style={{
+                  ...styles.button,
+                  flexDirection: "row",
+                  gap: 4,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Text>
+                  Sort by:{" "}
+                  {sortOptions.find((opt) => opt.value === sortOption)?.label ??
+                    "Default"}
+                </Text>
+                <Ionicons
+                  name={sortOpen ? "chevron-up" : "chevron-down"}
+                  size={16}
+                />
+              </Pressable>
+            </View>
 
-            <Pressable style={styles.button}>
-              <Text>Filter ⚙️</Text>
-            </Pressable>
+            {/* Filter Dropdown */}
+            <select
+              value={filterOption}
+              onChange={(e) =>
+                setFilterOption(e.target.value as typeof filterOption)
+              }
+              className="form-input"
+              style={{ minWidth: 140 }}
+            >
+              <option value="all">All Tickets</option>
+              <option value="available_only">Only Available</option>
+            </select>
           </View>
         </View>
 
         {/* Ticket Grid */}
+
         <View
           style={{
             flexDirection: "row",
@@ -143,7 +165,7 @@ export default function HomePage() {
             columnGap: 12,
           }}
         >
-          {tickets.map((ticket, index) => (
+          {filteredTickets.map((ticket, index) => (
             <TicketCard
               key={ticket.id ?? index}
               {...ticket}
@@ -192,6 +214,19 @@ export default function HomePage() {
         visible={!!selectedTicket}
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
+      />
+
+      {/* Sort Dropdown Floated */}
+      <Dropdown
+        visible={sortOpen}
+        options={sortOptions}
+        selected={sortOption}
+        onSelect={(value) => {
+          setSortOption(value as typeof sortOption);
+          setSortOpen(false);
+        }}
+        onClose={() => setSortOpen(false)}
+        anchor={{ top: 130, left: "50%" }}
       />
     </View>
   );

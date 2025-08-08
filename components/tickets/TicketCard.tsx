@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 
-const placeholderImage = require("../assets/images/placeholder.png");
+import placeholder from "@/assets/images/placeholder.png";
+
 const screenWidth = Dimensions.get("window").width;
 const cardMargin = 12;
 const cardsPerRow = screenWidth < 500 ? 2 : screenWidth < 900 ? 3 : 4;
@@ -93,7 +94,7 @@ export default function TicketCard({
             source={
               typeof imageUrl === "string" && imageUrl.trim().length > 0
                 ? { uri: imageUrl }
-                : placeholderImage
+                : placeholder
             }
             style={{
               width: "100%",

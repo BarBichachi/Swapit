@@ -1,6 +1,6 @@
 "use client";
 
-import Input from "@/components/Input";
+import Input from "@/components/global/Input";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { useState } from "react";

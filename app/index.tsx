@@ -1,9 +1,10 @@
-import Dropdown from "@/components/Dropdown";
-import Input from "@/components/Input";
+import Dropdown from "@/components/global/Dropdown";
+import TicketFilters from "@/components/tickets/TicketFilters";
+
 import { useTickets } from "@/hooks/useTickets";
 
-import TicketCard from "@/components/TicketCard";
-import TicketDetailsModal from "@/components/TicketDetailsModal";
+import TicketCard from "@/components/tickets/TicketCard";
+import TicketDetailsModal from "@/components/tickets/TicketDetailsModal";
 import { Ticket } from "@/types/ticket";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -99,61 +100,19 @@ export default function HomePage() {
           <Text style={{ fontSize: 16, marginBottom: 12 }}>
             Ready to sell or buy a ticket?
           </Text>
-
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 8,
-              marginBottom: 16,
-              justifyContent: "center",
-            }}
-          >
-            <Input
-              placeholder="Search..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-input"
-            />
-
-            {/* Sort Dropdown */}
-            <View style={{ position: "relative", zIndex: 999 }}>
-              <Pressable
-                onPress={() => setSortOpen((prev) => !prev)}
-                style={{
-                  ...styles.button,
-                  flexDirection: "row",
-                  gap: 4,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text>
-                  Sort by:{" "}
-                  {sortOptions.find((opt) => opt.value === sortOption)?.label ??
-                    "Default"}
-                </Text>
-                <Ionicons
-                  name={sortOpen ? "chevron-up" : "chevron-down"}
-                  size={16}
-                />
-              </Pressable>
-            </View>
-
-            {/* Filter Dropdown */}
-            <select
-              value={filterOption}
-              onChange={(e) =>
-                setFilterOption(e.target.value as typeof filterOption)
-              }
-              className="form-input"
-              style={{ minWidth: 140 }}
-            >
-              <option value="all">All Tickets</option>
-              <option value="available_only">Only Available</option>
-            </select>
-          </View>
         </View>
+
+        <TicketFilters
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          sortOption={sortOption}
+          setSortOption={setSortOption}
+          sortOpen={sortOpen}
+          setSortOpen={setSortOpen}
+          filterOption={filterOption}
+          setFilterOption={setFilterOption}
+          sortOptions={sortOptions}
+        />
 
         {/* Ticket Grid */}
 

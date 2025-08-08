@@ -1,13 +1,32 @@
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import Head from "expo-router/head";
+import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import "./styles.css";
 
 export default function RootLayout() {
   const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsLoggedIn(!!data.session?.user);
+    };
+    checkUser();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   return (
     <>
@@ -84,6 +103,16 @@ export default function RootLayout() {
             drawerIcon: ({ size, color }) => (
               <Ionicons name="log-in-outline" size={size} color={color} />
             ),
+          }}
+        />
+        <Drawer.Screen
+          name="(auth)/logout"
+          options={{
+            title: "Logout",
+            drawerIcon: ({ size, color }) => (
+              <Ionicons name="log-out-outline" size={size} color={color} />
+            ),
+            drawerItemStyle: !isLoggedIn ? { display: "none" } : {},
           }}
         />
         <Drawer.Screen

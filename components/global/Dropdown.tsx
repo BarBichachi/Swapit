@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React from "react";
 import {
   Dimensions,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -8,17 +9,19 @@ import {
   View,
 } from "react-native";
 
+type AnchorRef = React.RefObject<View>;
+
 interface DropdownProps {
   visible: boolean;
   options: { value: string; label: string }[];
   selected?: string;
   onSelect: (value: string) => void;
   onClose: () => void;
-  anchor?: {
-    top?: number;
-    left?: number | string;
-    right?: number | string;
-  };
+  anchorRef: AnchorRef;
+  placement?: "bottom-start" | "bottom-end" | "top-start" | "top-end";
+  offset?: number;
+  matchTriggerWidth?: boolean;
+  maxHeight?: number;
 }
 
 export default function Dropdown({
@@ -27,71 +30,113 @@ export default function Dropdown({
   selected,
   onSelect,
   onClose,
-  anchor = { top: 100, left: 100 },
+  anchorRef,
+  placement = "bottom-start",
+  offset = 8,
+  matchTriggerWidth = true,
+  maxHeight = 260,
 }: DropdownProps) {
   const screen = Dimensions.get("window");
+  const [pos, setPos] = React.useState({
+    top: 0,
+    left: 0,
+    width: 180,
+    height: 0,
+  });
 
-  const containerRef = useRef<View>(null);
+  // Measure anchor on open / resize / scroll
+  React.useEffect(() => {
+    if (!visible || !anchorRef?.current) return;
 
-  useEffect(() => {
-    const handleClickOutside = (e: any) => {
-      if (containerRef.current) {
-        // Naively close dropdown on any touch for now
-        onClose();
+    const measure = () => {
+      const node: any = anchorRef.current as unknown as HTMLElement | null;
+
+      if (Platform.OS === "web") {
+        if (!node || !node.getBoundingClientRect) return;
+
+        const r = node.getBoundingClientRect();
+        const width = matchTriggerWidth ? r.width : 180;
+        const top = r.bottom + offset;
+        const left = placement.endsWith("end") ? r.right - width : r.left;
+
+        setPos({ top, left, width, height: r.height });
+        return;
+      }
+
+      // iOS/Android
+      node?.measureInWindow?.((x: number, y: number, w: number, h: number) => {
+        const top = placement.startsWith("bottom")
+          ? y + h + offset
+          : y - offset;
+        const left = placement.endsWith("end") ? x + w : x;
+        setPos({ top, left, width: matchTriggerWidth ? w : 180, height: h });
+      });
+    };
+
+    measure();
+    const id = requestAnimationFrame(measure);
+
+    const onResize = () => measure();
+    if (Platform.OS === "web") {
+      window.addEventListener("resize", onResize);
+      window.addEventListener("scroll", onResize, true);
+    }
+    return () => {
+      cancelAnimationFrame(id);
+      if (Platform.OS === "web") {
+        window.removeEventListener("resize", onResize);
+        window.removeEventListener("scroll", onResize, true);
       }
     };
+  }, [visible, anchorRef, placement, offset, matchTriggerWidth]);
 
-    if (visible) {
-      document.addEventListener("click", handleClickOutside);
-    }
+  // Outside click (web only)
+  React.useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    const handle = () => onClose();
+    document.addEventListener("click", handle);
+    return () => document.removeEventListener("click", handle);
+  }, [visible, onClose]);
 
-    return () => {
-      document.removeEventListener("click", handleClickOutside);
-    };
-  }, [visible]);
+  if (!visible || !options?.length) return null;
 
-  if (!visible) return null;
+  // Keep inside viewport & align end if needed
+  const padding = 8;
+  let left = pos.left;
+  let top = pos.top;
+
+  if (placement.endsWith("end")) {
+    left = left - (matchTriggerWidth ? pos.width : 180);
+  }
+
+  const width = matchTriggerWidth ? pos.width : 180;
+  left = Math.max(padding, Math.min(left, screen.width - padding - width));
+  top = Math.max(padding, Math.min(top, screen.height - padding));
 
   return (
     <TouchableWithoutFeedback onPress={onClose}>
       <View
         style={[
           styles.backdrop,
-          {
-            width: screen.width,
-            height: screen.height,
-          },
+          Platform.OS === "web" ? ({ position: "fixed" } as any) : null, // web override
+          { width: screen.width, height: screen.height },
         ]}
       >
-        <View
-          ref={containerRef}
-          style={[
-            styles.dropdown,
-            {
-              top: anchor.top ?? 100,
-              left: typeof anchor.left === "number" ? anchor.left : undefined,
-              right:
-                typeof anchor.right === "number" ? anchor.right : undefined,
-              transform:
-                typeof anchor.left === "string" &&
-                (anchor.left as string).endsWith("%")
-                  ? [{ translateX: -90 }]
-                  : undefined,
-            },
-          ]}
-        >
-          {options.map((option) => (
-            <Pressable
-              key={option.value}
-              onPress={() => onSelect(option.value)}
-              style={[
-                styles.option,
-                option.value === selected && { backgroundColor: "#eee" },
-              ]}
-            >
-              <Text>{option.label}</Text>
-            </Pressable>
-          ))}
+        <View style={[styles.dropdown, { top, left, width, maxHeight }]}>
+          <View style={{ maxHeight, overflow: "hidden" as const }}>
+            {options.map((o) => {
+              const active = o.value === selected;
+              return (
+                <Pressable
+                  key={o.value}
+                  onPress={() => onSelect(o.value)}
+                  style={[styles.option, active && styles.active]}
+                >
+                  <Text>{o.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </View>
     </TouchableWithoutFeedback>
@@ -99,26 +144,19 @@ export default function Dropdown({
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    zIndex: 9999,
-  },
+  backdrop: { position: "absolute", top: 0, left: 0, zIndex: 9999 },
   dropdown: {
     position: "absolute",
     backgroundColor: "white",
-    borderRadius: 6,
-    paddingVertical: 8,
+    borderRadius: 8,
+    paddingVertical: 6,
     minWidth: 180,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
+    elevation: 12,
   },
-  option: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
+  option: { paddingVertical: 10, paddingHorizontal: 12 },
+  active: { backgroundColor: "#f1f5f9" },
 });

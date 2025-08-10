@@ -13,11 +13,13 @@ import {
   SortOption,
 } from "@/lib/constants/tickets";
 import { Ticket } from "@/types/ticket";
+import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import "./styles.css";
 
 export default function HomePage() {
+  const router = useRouter();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("none");
@@ -69,7 +71,7 @@ export default function HomePage() {
       </ScrollView>
 
       {/* Floating Add Button */}
-      <FloatingAddButton onPress={() => alert("Add Ticket")} />
+      <FloatingAddButton onPress={() => router.push("/(tickets)/add-ticket")} />
 
       {/* Ticket Details Modal */}
       <TicketDetailsModal

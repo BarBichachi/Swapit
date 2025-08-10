@@ -2,7 +2,15 @@ import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import Slider from "@react-native-assets/slider";
 import { useEffect, useState } from "react";
-import { Alert, Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
 interface TicketUpdateModalProps {
   visible: boolean;

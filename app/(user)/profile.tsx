@@ -1,5 +1,5 @@
-import TicketCard from "@/components/TicketCard";
-import TicketUpdateModal from "@/components/TicketUpdateModal";
+import TicketCard from "@/components/tickets/TicketCard";
+import TicketUpdateModal from "@/components/tickets/TicketUpdateModal";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
@@ -112,9 +112,8 @@ export default function ProfileScreen() {
         price: t.current_price,
         quantity: t.quantity_available,
         imageUrl: event?.image_url
-          ? supabase.storage
-              .from("event-images")
-              .getPublicUrl(event.image_url).data.publicUrl
+          ? supabase.storage.from("event-images").getPublicUrl(event.image_url)
+              .data.publicUrl
           : undefined,
         status: t.status,
       };

@@ -11,22 +11,64 @@ import "./styles.css";
 export default function RootLayout() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string>("Guest");
 
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getSession();
-      setIsLoggedIn(!!data.session?.user);
+      const user = data.session?.user;
+      setIsLoggedIn(!!user);
+
+      if (user) {
+        // נשלוף את השם מהפרופיל
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("first_name, last_name")
+          .eq("id", user.id)
+          .single();
+        if (profileData) {
+          setUserName(`${profileData.first_name} ${profileData.last_name}`);
+        } else {
+          setUserName("User");
+        }
+      } else {
+        setUserName("Guest");
+      }
     };
     checkUser();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setIsLoggedIn(!!session?.user);
+      if (session?.user) {
+        supabase
+          .from("profiles")
+          .select("first_name, last_name")
+          .eq("id", session.user.id)
+          .single()
+          .then(({ data: profileData }) => {
+            if (profileData) {
+              setUserName(`${profileData.first_name} ${profileData.last_name}`);
+            } else {
+              setUserName("User");
+            }
+          });
+      } else {
+        setUserName("Guest");
+      }
     });
 
     return () => {
       listener?.subscription?.unsubscribe();
     };
   }, []);
+
+  const handleProfilePress = () => {
+    if (isLoggedIn) {
+      router.push("/(user)/profile");
+    } else {
+      router.push("/(auth)/login");
+    }
+  };
 
   return (
     <>
@@ -44,10 +86,13 @@ export default function RootLayout() {
           ),
           headerLeft: () => (
             <TouchableOpacity
-              onPress={() => router.push("/(user)/profile")}
-              style={{ marginLeft: 15 }}
+              onPress={handleProfilePress}
+              style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
             >
               <Ionicons name="person-circle-outline" size={28} color="black" />
+              <Text style={{ marginLeft: 6, fontSize: 16 }}>
+                {userName}
+              </Text>
             </TouchableOpacity>
           ),
           headerRight: () => (

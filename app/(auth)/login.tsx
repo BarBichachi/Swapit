@@ -3,14 +3,36 @@
 import Input from "@/components/global/Input";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emptyFields, setEmptyFields] = useState<Set<string>>(new Set());
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
+
+  useEffect(() => {
+    setForm({ email: "", password: "" });
+    setError("");
+    setLoading(false);
+    setEmptyFields(new Set());
+
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      setIsLoggedIn(!!data.session?.user);
+    };
+    checkSession();
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session?.user);
+      setLoading(false); // תאפס טעינה בכל שינוי התחברות
+    });
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -50,11 +72,12 @@ export default function LoginPage() {
       return;
     }
 
+    setIsLoggedIn(true);
+    setLoading(false);
     router.replace("/");
   };
 
   // TODO: TO BE USED IN THE FUTURE
-  // This function will handle password reset functionality
   const handleResetPassword = async () => {
     if (!form.email.trim()) {
       setError("Enter your email to reset password.");
@@ -75,6 +98,34 @@ export default function LoginPage() {
       alert("Password reset email sent!");
     }
   };
+
+  const handleLogout = async () => {
+    setLoading(true);
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setError(error.message);
+      setLoading(false);
+    } else {
+      setIsLoggedIn(false);
+      setForm({ email: "", password: "" });
+      setError("");
+      setLoading(false);
+      router.replace("/"); // מעבר לעמוד הבית אחרי התנתקות
+    }
+  };
+
+  if (isLoggedIn) {
+    return (
+      <div className="form-container">
+        <h1 className="form-title" style={{ marginBottom: "0.5rem" }}>
+          You are already logged in!
+        </h1>
+        <button className="form-button" onClick={handleLogout} disabled={loading}>
+          {loading ? "Logging out..." : "Logout"}
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="form-container">

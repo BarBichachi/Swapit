@@ -4,14 +4,25 @@ import { useEffect, useState } from "react";
 
 export const useTickets = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [userName, setUserName] = useState("Bar");
+  const [userName, setUserName] = useState<string>("");
 
   useEffect(() => {
     const fetchTickets = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      setUserName(user?.user_metadata?.first_name ?? "Bar");
+
+      if (!user) {
+        setUserName("Guest");
+      } else {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("first_name")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        setUserName(profile?.first_name?.trim() || "Guest");
+      }
 
       const { data, error } = await supabase
         .from("tickets")
@@ -43,11 +54,11 @@ export const useTickets = () => {
             : "TBD",
           price: t.current_price,
           quantity: t.quantity_available,
-          imageUrl: event?.image_url
-            ? supabase.storage
-                .from("event-images")
-                .getPublicUrl(event.image_url).data.publicUrl
-            : undefined,
+          imageUrl:
+            typeof event?.image_url === "string" &&
+            /^https?:\/\//i.test(event.image_url)
+              ? event.image_url
+              : undefined,
         };
       });
 

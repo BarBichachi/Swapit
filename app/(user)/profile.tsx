@@ -113,10 +113,11 @@ export default function ProfileScreen() {
           : "TBD",
         price: t.current_price,
         quantity: t.quantity_available,
-        imageUrl: event?.image_url
-          ? supabase.storage.from("event-images").getPublicUrl(event.image_url)
-              .data.publicUrl
-          : undefined,
+        imageUrl:
+          typeof event?.image_url === "string" &&
+          /^https?:\/\//i.test(event.image_url)
+            ? event.image_url
+            : undefined,
         status: t.status,
         // אפשר להוסיף כאן שדות נוספים לפי הטיפוס שלך
       };
@@ -130,9 +131,11 @@ export default function ProfileScreen() {
     fetchProfileAndTickets();
 
     // האזנה לשינוי התחברות/התנתקות
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      fetchProfileAndTickets();
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        fetchProfileAndTickets();
+      }
+    );
 
     return () => {
       listener?.subscription?.unsubscribe();

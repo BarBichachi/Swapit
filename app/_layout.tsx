@@ -37,25 +37,29 @@ export default function RootLayout() {
     };
     checkUser();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user);
-      if (session?.user) {
-        supabase
-          .from("profiles")
-          .select("first_name, last_name")
-          .eq("id", session.user.id)
-          .single()
-          .then(({ data: profileData }) => {
-            if (profileData) {
-              setUserName(`${profileData.first_name} ${profileData.last_name}`);
-            } else {
-              setUserName("User");
-            }
-          });
-      } else {
-        setUserName("Guest");
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setIsLoggedIn(!!session?.user);
+        if (session?.user) {
+          supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", session.user.id)
+            .single()
+            .then(({ data: profileData }) => {
+              if (profileData) {
+                setUserName(
+                  `${profileData.first_name} ${profileData.last_name}`
+                );
+              } else {
+                setUserName("User");
+              }
+            });
+        } else {
+          setUserName("Guest");
+        }
       }
-    });
+    );
 
     return () => {
       listener?.subscription?.unsubscribe();
@@ -87,12 +91,14 @@ export default function RootLayout() {
           headerLeft: () => (
             <TouchableOpacity
               onPress={handleProfilePress}
-              style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginLeft: 15,
+              }}
             >
               <Ionicons name="person-circle-outline" size={28} color="black" />
-              <Text style={{ marginLeft: 6, fontSize: 16 }}>
-                {userName}
-              </Text>
+              <Text style={{ marginLeft: 6, fontSize: 16 }}>{userName}</Text>
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -162,6 +168,12 @@ export default function RootLayout() {
         />
         <Drawer.Screen
           name="(auth)/callback"
+          options={{
+            drawerItemStyle: { display: "none" },
+          }}
+        />
+        <Drawer.Screen
+          name="(tickets)/add-ticket"
           options={{
             drawerItemStyle: { display: "none" },
           }}

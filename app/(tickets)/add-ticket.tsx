@@ -1,4 +1,3 @@
-// app/tickets/add-ticket.tsx
 "use client";
 
 import Input from "@/components/global/Input";
@@ -10,42 +9,27 @@ import { ScrollView } from "react-native";
 import Select from "react-select";
 import "../styles.css";
 
+import { useAddTicketForm, type AddTicketForm } from "@/hooks/useAddTicketForm";
+import { Controller } from "react-hook-form";
+
 type Category = { id: string; name: string };
 
 export default function AddTicketPage() {
   const router = useRouter();
 
-  // -------- form state (mirrors signup.tsx style) --------
+  // ---------- RHF ----------
+  const {
+    control,
+    handleSubmit: rhfHandleSubmit,
+    setValue,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useAddTicketForm();
+
+  // ---------- categories (react-select) ----------
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [emptyFields, setEmptyFields] = useState<Set<string>>(new Set());
+  const [fatalError, setFatalError] = useState("");
 
-  // Event fields
-  const [eventForm, setEventForm] = useState({
-    name: "",
-    venue: "",
-    city: "",
-    datetime: "", // HTML datetime-local
-    categoryId: "",
-    imageUrl: "", // optional static URL for now
-  });
-
-  // Ticket fields
-  const [ticketForm, setTicketForm] = useState({
-    originalPrice: "",
-    quantityTotal: "1",
-    areaType: "",
-    isSeated: false,
-    section: "",
-    row: "",
-    seatNumbers: "" as string, // comma-separated, will split -> string[]
-    description: "",
-  });
-
-  const [barcodeFile, setBarcodeFile] = useState<File | null>(null);
-  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
-
-  // -------- categories (react-select) --------
   const [categories, setCategories] = useState<Category[]>([]);
   useEffect(() => {
     (async () => {
@@ -62,134 +46,135 @@ export default function AddTicketPage() {
     [categories]
   );
 
-  // -------- helpers --------
-  const markMissing = (keys: string[]) => {
-    const s = new Set<string>(keys);
-    setEmptyFields(s);
-    return s;
-  };
-
-  const clearFieldError = (name: string) =>
-    setEmptyFields((prev) => {
-      const next = new Set(prev);
-      next.delete(name);
-      return next;
-    });
-
-  // -------- submit --------
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
+  // ---------- Submit ----------
+  const onSubmit = async (data: AddTicketForm) => {
+    setFatalError("");
     setLoading(true);
-
-    // Required checks (both event + ticket)
-    const required: string[] = [];
-    const eF = eventForm;
-    const tF = ticketForm;
-
-    if (!eF.name.trim()) required.push("event.name");
-    if (!eF.venue.trim()) required.push("event.venue");
-    if (!eF.city.trim()) required.push("event.city");
-    if (!eF.datetime.trim()) required.push("event.datetime");
-    if (!eF.categoryId.trim()) required.push("event.categoryId");
-
-    if (!tF.originalPrice.trim()) required.push("ticket.originalPrice");
-    if (!tF.quantityTotal.trim()) required.push("ticket.quantityTotal");
-    if (!tF.areaType.trim()) required.push("ticket.areaType");
-
-    if (required.length) {
-      markMissing(required);
-      setError("Please fill in all required fields.");
-      setLoading(false);
-      return;
-    }
-
     try {
-      // Get current user (profiles.id == auth.user.id)
+      // 0) Auth
       const { data: userData, error: userErr } = await supabase.auth.getUser();
       if (userErr || !userData.user) throw new Error("Not authenticated.");
       const userId = userData.user.id;
 
-      // 1) Create event
+      // 1) Upload event image (if provided)
+      let event_image_url: string | null = null;
+      if (data.eventImageFile) {
+        const eventImgPath = `${userId}/event_${crypto.randomUUID()}_${
+          data.eventImageFile.name
+        }`;
+        const { error: eventImgErr } = await supabase.storage
+          .from("event-images")
+          .upload(eventImgPath, data.eventImageFile, {
+            cacheControl: "3600",
+            upsert: false,
+            contentType: data.eventImageFile.type,
+          });
+        if (eventImgErr) throw new Error(eventImgErr.message);
+        const { data: pub } = supabase.storage
+          .from("event-images")
+          .getPublicUrl(eventImgPath);
+        event_image_url = pub.publicUrl;
+      }
+
+      // 2) Create event
       const eventInsert = {
-        name: eF.name.trim(),
-        venue: eF.venue.trim(),
-        city: eF.city.trim(),
-        // convert datetime-local to timestamp string
-        datetime: new Date(eF.datetime).toISOString().replace("Z", ""),
-        category_id: eF.categoryId,
+        name: data.eventTitle.trim(),
+        venue: data.venue.trim(),
+        city: data.city.trim(),
+        datetime: new Date(data.eventDate).toISOString(), // keep UTC 'Z'
+        category_id: data.categoryId,
         created_by: userId,
-        image_url: eF.imageUrl?.trim() || null,
+        image_url: event_image_url,
         status: "pending",
       };
 
-      const { data: eventRes, error: eventErr } = await supabase
+      const { data: eData, error: eErr } = await supabase
         .from("events")
         .insert([eventInsert])
-        .select("id")
+        .select("id, created_by")
         .single();
 
-      if (eventErr || !eventRes?.id)
-        throw new Error(eventErr?.message || "Failed creating event.");
+      console.log("[DEBUG] events insert/select", {
+        eData,
+        eErr,
+        userId,
+        eventInsert,
+      });
 
-      const eventId = eventRes.id as string;
+      if (eErr) {
+        setFatalError(`events insert/select failed: ${eErr.message}`);
+        setLoading(false);
+        return;
+      }
 
-      // 2) Upload barcode (optional)
+      const eventId = eData!.id as string;
+
+      // 3) Upload ticket barcode PDF
       let barcode_url: string | null = null;
-      if (barcodeFile) {
-        const path = `${userId}/${crypto.randomUUID()}_${barcodeFile.name}`;
+      if (data.ticketPdf) {
+        const path = `${userId}/${crypto.randomUUID()}_${data.ticketPdf.name}`;
         const { error: upErr } = await supabase.storage
-          .from("barcodes")
-          .upload(path, barcodeFile, {
+          .from("event-tickets")
+          .upload(path, data.ticketPdf, {
             cacheControl: "3600",
             upsert: false,
+            contentType: data.ticketPdf.type,
           });
         if (upErr) throw new Error(upErr.message);
-
         const { data: pub } = supabase.storage
-          .from("barcodes")
+          .from("event-tickets")
           .getPublicUrl(path);
         barcode_url = pub.publicUrl;
       }
 
-      // 3) Insert ticket
+      // 4) Seat numbers CSV -> array
       const seatNumbersArray =
-        tF.seatNumbers
-          .split(",")
+        data.seatNumbersCsv
+          ?.split(",")
           .map((s) => s.trim())
           .filter(Boolean) || [];
 
+      // 5) Insert ticket
       const ticketInsert = {
         user_id: userId,
         event_id: eventId,
-        original_price: Number(tF.originalPrice),
-        quantity_total: Number(tF.quantityTotal),
-        area_type: tF.areaType.trim(),
-        is_seated: !!tF.isSeated,
-        section: tF.section?.trim() || null,
-        row: tF.row?.trim() || null,
+        original_price: data.price,
+        current_price: data.price,
+        quantity_total: data.quantity,
+        quantity_available: data.quantity,
+        area_type: data.areaType.trim(),
+        is_seated: !!data.isSeated,
+        section: data.section || null,
+        row: data.row || null,
         seat_numbers: seatNumbersArray.length ? seatNumbersArray : null,
         status: "active",
-        barcode_url: barcode_url ?? "", // schema says NOT NULL; require upload later if you prefer
+        barcode_url: barcode_url ?? "",
         transaction_id: null,
         sold_at: null,
-        description: tF.description?.trim() || null,
+        description: data.description?.trim() || null,
       };
 
-      const { error: ticketErr } = await supabase
+      const { error: tErr } = await supabase
         .from("tickets")
         .insert([ticketInsert]);
-      if (ticketErr) throw new Error(ticketErr.message);
 
-      // Done
+      console.log("[DEBUG] tickets insert", { tErr, userId, ticketInsert });
+
+      if (tErr) {
+        setFatalError(`tickets insert failed: ${tErr.message}`);
+        setLoading(false);
+        return;
+      }
+
       router.replace("/");
     } catch (err: any) {
-      setError(err.message || "Unable to add ticket.");
+      setFatalError(err.message || "Unable to add ticket.");
     } finally {
       setLoading(false);
     }
   };
 
+  // ---------- Render ----------
   return (
     <ScrollView
       style={{ flex: 1 }}
@@ -199,162 +184,206 @@ export default function AddTicketPage() {
       <div className="form-container">
         <h1 className="form-title">Add a Ticket</h1>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={rhfHandleSubmit(onSubmit)}>
           {/* EVENT SECTION */}
           <h3 style={{ marginTop: 8, marginBottom: 6 }}>Event Details</h3>
 
-          <Input
-            name="event.name"
-            placeholder="Event Name"
-            value={eventForm.name}
-            onChange={(e: any) => {
-              setEventForm({ ...eventForm, name: e.target.value });
-              clearFieldError("event.name");
-            }}
-            className={`form-input ${
-              emptyFields.has("event.name") ? "form-input-error" : ""
-            }`}
+          {/* Event title */}
+          <Controller
+            control={control}
+            name="eventTitle"
+            render={({ field }) => (
+              <>
+                <Input
+                  placeholder="Event Name"
+                  value={field.value}
+                  onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                  className="form-input"
+                />
+                {errors.eventTitle && (
+                  <div className="form-error">{errors.eventTitle.message}</div>
+                )}
+              </>
+            )}
           />
+
+          {/* Venue + City */}
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Input
-              name="event.venue"
-              placeholder="Venue"
-              value={eventForm.venue}
-              onChange={(e: any) => {
-                setEventForm({ ...eventForm, venue: e.target.value });
-                clearFieldError("event.venue");
-              }}
-              className={`form-input ${
-                emptyFields.has("event.venue") ? "form-input-error" : ""
-              }`}
-            />
-            <div className="form-group">
-              <Select
-                options={cities.map((c) => ({ label: c, value: c }))}
-                placeholder="City"
-                onChange={(opt) => {
-                  setEventForm({ ...eventForm, city: opt?.value || "" });
-                  clearFieldError("event.city");
-                }}
-                value={
-                  eventForm.city
-                    ? { label: eventForm.city, value: eventForm.city }
-                    : null
-                }
-                isSearchable
-              />
-              {emptyFields.has("event.city") && (
-                <div className="form-error">City is required</div>
+            <Controller
+              control={control}
+              name="venue"
+              render={({ field }) => (
+                <>
+                  <Input
+                    placeholder="Venue"
+                    value={field.value}
+                    onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                    className="form-input"
+                  />
+                  {errors.venue && (
+                    <div className="form-error">{errors.venue.message}</div>
+                  )}
+                </>
               )}
-            </div>
+            />
+
+            <Controller
+              control={control}
+              name="city"
+              render={({ field }) => (
+                <div className="form-group">
+                  <Select
+                    options={cities.map((c) => ({ label: c, value: c }))}
+                    placeholder="City"
+                    onChange={(opt) => field.onChange(opt?.value || "")}
+                    value={
+                      field.value
+                        ? { label: field.value, value: field.value }
+                        : null
+                    }
+                    isSearchable
+                  />
+                  {errors.city && (
+                    <div className="form-error">{errors.city.message}</div>
+                  )}
+                </div>
+              )}
+            />
           </div>
 
+          {/* Date + Category */}
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Input
-              name="event.datetime"
-              type="datetime-local"
-              value={eventForm.datetime}
-              onChange={(e: any) => {
-                setEventForm({ ...eventForm, datetime: e.target.value });
-                clearFieldError("event.datetime");
-              }}
-              className={`form-input ${
-                emptyFields.has("event.datetime") ? "form-input-error" : ""
-              }`}
-            />
-            <div className="form-group">
-              <Select
-                options={categoryOptions}
-                placeholder="Category"
-                onChange={(opt) => {
-                  setEventForm({ ...eventForm, categoryId: opt?.value || "" });
-                  clearFieldError("event.categoryId");
-                }}
-                value={
-                  eventForm.categoryId
-                    ? categoryOptions.find(
-                        (o) => o.value === eventForm.categoryId
-                      ) || null
-                    : null
-                }
-                isSearchable
-              />
-              {emptyFields.has("event.categoryId") && (
-                <div className="form-error">Category is required</div>
+            <Controller
+              control={control}
+              name="eventDate"
+              render={({ field }) => (
+                <>
+                  <Input
+                    type="datetime-local"
+                    value={field.value}
+                    onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                    className="form-input"
+                  />
+                  {errors.eventDate && (
+                    <div className="form-error">{errors.eventDate.message}</div>
+                  )}
+                </>
               )}
-            </div>
+            />
+            <Controller
+              control={control}
+              name="categoryId"
+              render={({ field }) => (
+                <div className="form-group">
+                  <Select
+                    options={categoryOptions}
+                    placeholder="Category"
+                    onChange={(opt) => field.onChange(opt?.value || "")}
+                    value={
+                      field.value
+                        ? categoryOptions.find(
+                            (o) => o.value === field.value
+                          ) || null
+                        : null
+                    }
+                    isSearchable
+                  />
+                  {errors.categoryId && (
+                    <div className="form-error">
+                      {errors.categoryId.message}
+                    </div>
+                  )}
+                </div>
+              )}
+            />
           </div>
 
+          {/* Event Image */}
           <label className="form-label" style={{ marginTop: 8 }}>
-            Event Image (PNG/JPG)
+            Event Image (PNG/JPG/WEBP)
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => setEventImageFile(e.target.files?.[0] ?? null)}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                setValue("eventImageFile", f, { shouldValidate: true });
+              }}
               style={{ display: "block", width: "100%", marginTop: 6 }}
             />
           </label>
+          {errors.eventImageFile && (
+            <div className="form-error">{errors.eventImageFile.message}</div>
+          )}
 
           {/* TICKET SECTION */}
           <h3 style={{ marginTop: 18, marginBottom: 6 }}>Ticket Details</h3>
 
+          {/* Price + Quantity */}
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            <Input
-              name="ticket.originalPrice"
-              type="number"
-              placeholder="Original Price (₪)"
-              value={ticketForm.originalPrice}
-              onChange={(e: any) => {
-                setTicketForm({ ...ticketForm, originalPrice: e.target.value });
-                clearFieldError("ticket.originalPrice");
-              }}
-              className={`form-input ${
-                emptyFields.has("ticket.originalPrice")
-                  ? "form-input-error"
-                  : ""
-              }`}
+            <Controller
+              control={control}
+              name="price"
+              render={({ field }) => (
+                <>
+                  <Input
+                    type="number"
+                    placeholder="Original Price (₪)"
+                    value={field.value as any}
+                    onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                    className="form-input"
+                  />
+                  {errors.price && (
+                    <div className="form-error">{errors.price.message}</div>
+                  )}
+                </>
+              )}
+            />
+            <Controller
+              control={control}
+              name="quantity"
+              render={({ field }) => (
+                <>
+                  <Input
+                    type="number"
+                    placeholder="Total Quantity"
+                    value={field.value as any}
+                    onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                    className="form-input"
+                  />
+                  {errors.quantity && (
+                    <div className="form-error">{errors.quantity.message}</div>
+                  )}
+                </>
+              )}
             />
           </div>
 
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-          >
-            <Input
-              name="ticket.quantityTotal"
-              type="number"
-              placeholder="Total Quantity"
-              value={ticketForm.quantityTotal}
-              onChange={(e: any) => {
-                setTicketForm({ ...ticketForm, quantityTotal: e.target.value });
-                clearFieldError("ticket.quantityTotal");
-              }}
-              className={`form-input ${
-                emptyFields.has("ticket.quantityTotal")
-                  ? "form-input-error"
-                  : ""
-              }`}
-            />
-          </div>
-
-          <Input
-            name="ticket.areaType"
-            placeholder="Area Type (e.g., Floor, Stand, VIP)"
-            value={ticketForm.areaType}
-            onChange={(e: any) => {
-              setTicketForm({ ...ticketForm, areaType: e.target.value });
-              clearFieldError("ticket.areaType");
-            }}
-            className={`form-input ${
-              emptyFields.has("ticket.areaType") ? "form-input-error" : ""
-            }`}
+          {/* Area type */}
+          <Controller
+            control={control}
+            name="areaType"
+            render={({ field }) => (
+              <>
+                <Input
+                  placeholder="Area Type (e.g., Floor, VIP)"
+                  value={field.value}
+                  onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                  className="form-input"
+                />
+                {errors.areaType && (
+                  <div className="form-error">{errors.areaType.message}</div>
+                )}
+              </>
+            )}
           />
 
+          {/* Section / Row / SeatNumbers */}
           <div
             style={{
               display: "grid",
@@ -362,71 +391,110 @@ export default function AddTicketPage() {
               gap: 12,
             }}
           >
-            <Input
-              name="ticket.section"
-              placeholder="Section (optional)"
-              value={ticketForm.section}
-              onChange={(e: any) =>
-                setTicketForm({ ...ticketForm, section: e.target.value })
-              }
-              className="form-input"
+            <Controller
+              control={control}
+              name="section"
+              render={({ field }) => (
+                <Input
+                  placeholder="Section (optional)"
+                  value={field.value ?? ""}
+                  onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                  className="form-input"
+                />
+              )}
             />
-            <Input
-              name="ticket.row"
-              placeholder="Row (optional)"
-              value={ticketForm.row}
-              onChange={(e: any) =>
-                setTicketForm({ ...ticketForm, row: e.target.value })
-              }
-              className="form-input"
+            <Controller
+              control={control}
+              name="row"
+              render={({ field }) => (
+                <Input
+                  placeholder="Row (optional)"
+                  value={field.value ?? ""}
+                  onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                  className="form-input"
+                />
+              )}
             />
-            <Input
-              name="ticket.seatNumbers"
-              placeholder="Seat Numbers (comma separated)"
-              value={ticketForm.seatNumbers}
-              onChange={(e: any) =>
-                setTicketForm({ ...ticketForm, seatNumbers: e.target.value })
-              }
-              className="form-input"
+            <Controller
+              control={control}
+              name="seatNumbersCsv"
+              render={({ field }) => (
+                <Input
+                  placeholder="Seat Numbers (comma separated)"
+                  value={field.value ?? ""}
+                  onChange={(e: any) => field.onChange(e.target?.value ?? e)}
+                  className="form-input"
+                />
+              )}
             />
           </div>
 
-          <label className="form-label" style={{ marginTop: 8 }}>
-            Is Seated?
-            <input
-              type="checkbox"
-              checked={ticketForm.isSeated}
-              onChange={(e) =>
-                setTicketForm({ ...ticketForm, isSeated: e.target.checked })
-              }
-            />
-          </label>
+          {/* Is Seated */}
+          <Controller
+            control={control}
+            name="isSeated"
+            render={({ field }) => (
+              <label className="form-label" style={{ marginTop: 8 }}>
+                Is Seated?
+                <input
+                  type="checkbox"
+                  checked={!!field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  style={{ marginLeft: 8 }}
+                />
+              </label>
+            )}
+          />
 
+          {/* Barcode PDF (required) */}
           <label className="form-label" style={{ marginTop: 8 }}>
-            Upload Barcode (PDF/Image)
+            Upload Ticket (PDF only)
             <input
               type="file"
-              accept=".pdf,image/*"
-              onChange={(e) => setBarcodeFile(e.target.files?.[0] ?? null)}
+              accept="application/pdf"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) setValue("ticketPdf", f, { shouldValidate: true });
+              }}
               style={{ display: "block", width: "100%", marginTop: 6 }}
             />
           </label>
+          {errors.ticketPdf && (
+            <div className="form-error">{errors.ticketPdf.message}</div>
+          )}
+          {watch("ticketPdf") && (
+            <div style={{ marginTop: 4 }}>{watch("ticketPdf")?.name}</div>
+          )}
 
-          <label className="form-label" style={{ marginTop: 8 }}>
-            Description (optional)
-          </label>
-          <textarea
-            value={ticketForm.description}
-            onChange={(e) =>
-              setTicketForm({ ...ticketForm, description: e.target.value })
-            }
-            style={{ width: "100%", minHeight: 80, marginBottom: 12 }}
+          {/* Description */}
+          <Controller
+            control={control}
+            name="description"
+            render={({ field }) => (
+              <>
+                <label className="form-label" style={{ marginTop: 8 }}>
+                  Description (optional)
+                </label>
+                <textarea
+                  value={field.value ?? ""}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  style={{ width: "100%", minHeight: 80, marginBottom: 12 }}
+                />
+                {errors.description && (
+                  <div className="form-error">{errors.description.message}</div>
+                )}
+              </>
+            )}
           />
 
-          {error && <p className="form-error">{error}</p>}
+          {fatalError && <p className="form-error">{fatalError}</p>}
 
-          <button type="submit" className="form-button" disabled={loading}>
-            {loading ? "Adding Ticket..." : "Add Ticket"}
+          <button
+            type="submit"
+            className="form-button"
+            disabled={loading || isSubmitting}
+          >
+            {loading || isSubmitting ? "Adding Ticket..." : "Add Ticket"}
           </button>
 
           <div style={{ height: 16 }} />

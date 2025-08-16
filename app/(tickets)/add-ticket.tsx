@@ -33,10 +33,8 @@ export default function AddTicketPage() {
   // Ticket fields
   const [ticketForm, setTicketForm] = useState({
     originalPrice: "",
-    currentPrice: "",
     quantityTotal: "1",
-    quantityAvailable: "1",
-    areaType: "", // e.g., "Floor", "Stand", "VIP"
+    areaType: "",
     isSeated: false,
     section: "",
     row: "",
@@ -45,6 +43,7 @@ export default function AddTicketPage() {
   });
 
   const [barcodeFile, setBarcodeFile] = useState<File | null>(null);
+  const [eventImageFile, setEventImageFile] = useState<File | null>(null);
 
   // -------- categories (react-select) --------
   const [categories, setCategories] = useState<Category[]>([]);
@@ -95,9 +94,7 @@ export default function AddTicketPage() {
     if (!eF.categoryId.trim()) required.push("event.categoryId");
 
     if (!tF.originalPrice.trim()) required.push("ticket.originalPrice");
-    if (!tF.currentPrice.trim()) required.push("ticket.currentPrice");
     if (!tF.quantityTotal.trim()) required.push("ticket.quantityTotal");
-    if (!tF.quantityAvailable.trim()) required.push("ticket.quantityAvailable");
     if (!tF.areaType.trim()) required.push("ticket.areaType");
 
     if (required.length) {
@@ -166,9 +163,7 @@ export default function AddTicketPage() {
         user_id: userId,
         event_id: eventId,
         original_price: Number(tF.originalPrice),
-        current_price: Number(tF.currentPrice),
         quantity_total: Number(tF.quantityTotal),
-        quantity_available: Number(tF.quantityAvailable),
         area_type: tF.areaType.trim(),
         is_seated: !!tF.isSeated,
         section: tF.section?.trim() || null,
@@ -294,15 +289,15 @@ export default function AddTicketPage() {
             </div>
           </div>
 
-          <Input
-            name="event.imageUrl"
-            placeholder="Event Image URL (optional)"
-            value={eventForm.imageUrl}
-            onChange={(e: any) =>
-              setEventForm({ ...eventForm, imageUrl: e.target.value })
-            }
-            className="form-input"
-          />
+          <label className="form-label" style={{ marginTop: 8 }}>
+            Event Image (PNG/JPG)
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setEventImageFile(e.target.files?.[0] ?? null)}
+              style={{ display: "block", width: "100%", marginTop: 6 }}
+            />
+          </label>
 
           {/* TICKET SECTION */}
           <h3 style={{ marginTop: 18, marginBottom: 6 }}>Ticket Details</h3>
@@ -325,19 +320,6 @@ export default function AddTicketPage() {
                   : ""
               }`}
             />
-            <Input
-              name="ticket.currentPrice"
-              type="number"
-              placeholder="Current Price (₪)"
-              value={ticketForm.currentPrice}
-              onChange={(e: any) => {
-                setTicketForm({ ...ticketForm, currentPrice: e.target.value });
-                clearFieldError("ticket.currentPrice");
-              }}
-              className={`form-input ${
-                emptyFields.has("ticket.currentPrice") ? "form-input-error" : ""
-              }`}
-            />
           </div>
 
           <div
@@ -354,24 +336,6 @@ export default function AddTicketPage() {
               }}
               className={`form-input ${
                 emptyFields.has("ticket.quantityTotal")
-                  ? "form-input-error"
-                  : ""
-              }`}
-            />
-            <Input
-              name="ticket.quantityAvailable"
-              type="number"
-              placeholder="Quantity Available"
-              value={ticketForm.quantityAvailable}
-              onChange={(e: any) => {
-                setTicketForm({
-                  ...ticketForm,
-                  quantityAvailable: e.target.value,
-                });
-                clearFieldError("ticket.quantityAvailable");
-              }}
-              className={`form-input ${
-                emptyFields.has("ticket.quantityAvailable")
                   ? "form-input-error"
                   : ""
               }`}

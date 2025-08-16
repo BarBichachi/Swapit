@@ -1,6 +1,7 @@
 import TicketCard from "@/components/tickets/TicketCard";
 import TicketUpdateModal from "@/components/tickets/TicketUpdateModal";
 import { supabase } from "@/lib/supabase";
+import { Ticket } from "@/types/ticket";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -54,9 +55,9 @@ const styles = StyleSheet.create({
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
-  const [tickets, setTickets] = useState<any[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const router = useRouter();
 
@@ -101,7 +102,8 @@ export default function ProfileScreen() {
       )
       .eq("user_id", userId);
 
-    const formattedTickets = (ticketsData ?? []).map((t: any) => {
+    // יצירת מערך tickets לפי הטיפוס Ticket
+    const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
       const event = Array.isArray(t.events) ? t.events[0] : t.events;
       return {
         id: t.id,
@@ -116,6 +118,7 @@ export default function ProfileScreen() {
               .data.publicUrl
           : undefined,
         status: t.status,
+        // אפשר להוסיף כאן שדות נוספים לפי הטיפוס שלך
       };
     });
 
@@ -125,6 +128,15 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchProfileAndTickets();
+
+    // האזנה לשינוי התחברות/התנתקות
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      fetchProfileAndTickets();
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
   if (loading) {

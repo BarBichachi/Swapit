@@ -1,18 +1,27 @@
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 
 export default function LogoutScreen() {
-  const router = useRouter();
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    const signOut = async () => {
-      await supabase.auth.signOut();
-      router.replace("/"); // Redirect to home after logout
+    const logout = async () => {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        setError(error.message || "Logout failed. Please try again.");
+      }
     };
-    signOut();
+    logout();
   }, []);
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>

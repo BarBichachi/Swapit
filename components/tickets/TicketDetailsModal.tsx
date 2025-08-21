@@ -1,4 +1,5 @@
 import TicketModal from "@/components/tickets/TicketModal";
+import useAuthGuard from "@/hooks/useAuthGuard";
 import { Ticket } from "@/types/ticket";
 import Slider from "@react-native-assets/slider";
 import { useEffect, useState } from "react";
@@ -16,6 +17,7 @@ export default function TicketDetailsModal({
   ticket,
 }: TicketDetailsModalProps) {
   const [suggestedPrice, setSuggestedPrice] = useState(ticket?.price ?? 0);
+  const { isAuthed, requireAuth } = useAuthGuard();
 
   useEffect(() => {
     if (visible && ticket?.price != null) {
@@ -27,15 +29,24 @@ export default function TicketDetailsModal({
 
   const isFullPrice = suggestedPrice === ticket.price;
   const buttonColor = isFullPrice ? "#4FC3F7" : "#FFA726";
-  const buttonText = isFullPrice ? "Purchase" : "Offer";
+  const authedText = isFullPrice ? "Purchase" : "Offer";
+  const buttonText = isAuthed ? authedText : `Login to ${authedText}`;
 
-  const handleAction = () => {
+  const actionCore = () => {
     if (isFullPrice) {
       alert("Purchasing ticket at full price: " + ticket.price);
     } else {
       alert("Suggested price: " + suggestedPrice);
     }
     onClose();
+  };
+
+  const handleAction = () => {
+    // If not logged in: close modal and redirect to login (handled in hook)
+    requireAuth(actionCore, {
+      onFail: onClose,
+      redirectParams: { open: "ticket", ticketId: String(ticket.id) },
+    });
   };
 
   return (
@@ -62,9 +73,24 @@ export default function TicketDetailsModal({
           </Text>
           <Pressable
             onPress={handleAction}
-            style={[{ marginTop: 10, paddingVertical: 12, borderRadius: 8, width: "30%", backgroundColor: buttonColor }]}
+            style={[
+              {
+                marginTop: 10,
+                paddingVertical: 12,
+                borderRadius: 8,
+                width: "30%",
+                backgroundColor: buttonColor,
+              },
+            ]}
           >
-            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 14 }}>
+            <Text
+              style={{
+                color: "#fff",
+                textAlign: "center",
+                fontWeight: "600",
+                fontSize: 14,
+              }}
+            >
               {buttonText}
             </Text>
           </Pressable>

@@ -102,7 +102,6 @@ export default function ProfileScreen() {
       )
       .eq("user_id", userId);
 
-    // יצירת מערך tickets לפי הטיפוס Ticket
     const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
       const event = Array.isArray(t.events) ? t.events[0] : t.events;
       return {
@@ -119,7 +118,6 @@ export default function ProfileScreen() {
             ? event.image_url
             : undefined,
         status: t.status,
-        // אפשר להוסיף כאן שדות נוספים לפי הטיפוס שלך
       };
     });
 
@@ -130,7 +128,6 @@ export default function ProfileScreen() {
   useEffect(() => {
     fetchProfileAndTickets();
 
-    // האזנה לשינוי התחברות/התנתקות
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         fetchProfileAndTickets();

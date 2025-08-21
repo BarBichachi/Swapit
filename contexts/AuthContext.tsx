@@ -58,8 +58,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mountedRef.current) return;
         const sessionUser = session?.user ?? null;
         setUser(sessionUser);
-        if (sessionUser) await fetchProfile(sessionUser.id);
-        else setProfile(null);
+        if (sessionUser) {
+          setLoading(true);
+          await fetchProfile(sessionUser.id);
+          setLoading(false);
+        } else {
+          setProfile(null);
+          setLoading(false);
+        }
       }
     );
 

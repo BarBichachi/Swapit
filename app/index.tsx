@@ -14,8 +14,8 @@ import {
   SortOption,
 } from "@/lib/constants/tickets";
 import { Ticket } from "@/types/ticket";
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import "./styles.css";
 
@@ -31,13 +31,45 @@ export default function HomePage() {
   const filterAnchorRef = useRef<any>(null);
   const { tickets } = useTickets();
   const { userName, loading: authLoading } = useAuth();
-
   const filteredTickets = useFilteredTickets({
     tickets,
     searchTerm,
     filterOption,
     sortOption,
   });
+  const pathname = usePathname();
+  const params = useLocalSearchParams<{
+    open?: string | string[];
+    ticketId?: string | string[];
+  }>();
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+
+  // capture intent from URL once
+  useEffect(() => {
+    const open = Array.isArray(params.open) ? params.open[0] : params.open;
+    const ticketId = Array.isArray(params.ticketId)
+      ? params.ticketId[0]
+      : params.ticketId;
+    if (open === "ticket" && ticketId) setPendingTicketId(String(ticketId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open, params.ticketId]);
+
+  // when tickets are loaded AND auth is settled, open and then clean URL
+  useEffect(() => {
+    if (!pendingTicketId) return;
+    if (authLoading) return;
+    if (!userName) return;
+    if (!tickets?.length) return;
+
+    const t = tickets.find((x) => String(x.id) === pendingTicketId);
+    if (!t) return;
+
+    setSelectedTicket(t);
+
+    // Clean URL so it won't reopen again
+    router.replace({ pathname, params: {} } as never);
+    setPendingTicketId(null);
+  }, [pendingTicketId, tickets, authLoading, userName, pathname, router]);
 
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>

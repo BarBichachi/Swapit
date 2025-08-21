@@ -1,12 +1,13 @@
+import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Image, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface TicketModalProps {
   visible: boolean;
   onClose: () => void;
   ticket: Ticket | null;
-  actions?: React.ReactNode; // תוספות ייחודיות לכל מודל
+  actions?: React.ReactNode;
 }
 
 export default function TicketModal({
@@ -16,6 +17,52 @@ export default function TicketModal({
   actions,
 }: TicketModalProps) {
   if (!ticket) return null;
+
+  // local copy so we can patch fields from Realtime
+  const [localTicket, setLocalTicket] = useState(ticket);
+
+  // keep local state in sync when a *different* ticket is opened
+  useEffect(() => {
+    setLocalTicket(ticket);
+  }, [ticket?.id]);
+
+  // subscribe to updates for this ticket while the modal is open
+  useEffect(() => {
+    if (!visible || !ticket?.id) return;
+
+    const channel = supabase
+      .channel(`ticket-${ticket.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "tickets",
+          filter: `id=eq.${ticket.id}`,
+        },
+        (payload: any) => {
+          const row = payload.new;
+          // Map DB columns -> modal fields you render
+          setLocalTicket((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  // adjust these mappings to your Ticket type/columns
+                  price: row?.current_price ?? prev.price,
+                  quantity: row?.quantity_available ?? prev.quantity,
+                }
+              : prev
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [visible, ticket?.id]);
+
+  if (!localTicket) return null;
 
   return (
     <Modal
@@ -30,7 +77,7 @@ export default function TicketModal({
             <Image
               source={{
                 uri:
-                  ticket.imageUrl ||
+                  localTicket.imageUrl ||
                   "https://i.ytimg.com/vi/1RPkbjqSk5k/hq720.jpg",
               }}
               style={{
@@ -45,11 +92,10 @@ export default function TicketModal({
               <Text style={styles.imageCloseText}>✕</Text>
             </Pressable>
           </View>
-          <Text style={styles.title}>{ticket.eventTitle}</Text>
-          <Text>Date: {ticket.date}</Text>
-          <Text>Price: {ticket.price ?? ticket.price}₪</Text>
-          <Text>Quantity: {ticket.quantity}</Text>
-          {/* כאן יופיעו כפתורים/פיצ'רים נוספים */}
+          <Text style={styles.title}>{localTicket.eventTitle}</Text>
+          <Text>Date: {localTicket.date}</Text>
+          <Text>Price: {localTicket.price ?? localTicket.price}₪</Text>
+          <Text>Quantity: {localTicket.quantity}</Text>
           {actions}
         </Pressable>
       </Pressable>

@@ -4,6 +4,7 @@ import WelcomeHeader from "@/components/home/WelcomeHeader";
 import TicketDetailsModal from "@/components/tickets/TicketDetailsModal";
 import TicketFilters from "@/components/tickets/TicketFilters";
 import TicketGrid from "@/components/tickets/TicketGrid";
+import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTickets } from "@/hooks/useFilteredTickets";
 import { useTickets } from "@/hooks/useTickets";
 import {
@@ -28,7 +29,8 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
-  const { tickets, userName } = useTickets();
+  const { tickets } = useTickets();
+  const { userName, loading: authLoading } = useAuth();
 
   const filteredTickets = useFilteredTickets({
     tickets,
@@ -48,7 +50,7 @@ export default function HomePage() {
         }}
       >
         {/* Welcome Section */}
-        <WelcomeHeader userName={userName} />
+        <WelcomeHeader userName={authLoading ? "…" : userName} />
 
         {/* Ticket Filters */}
         <TicketFilters

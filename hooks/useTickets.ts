@@ -4,69 +4,83 @@ import { useEffect, useState } from "react";
 
 export const useTickets = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [userName, setUserName] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+
+  const fetchTickets = async () => {
+    const { data, error } = await supabase
+      .from("tickets")
+      .select(
+        `
+        id,
+        current_price,
+        quantity_available,
+        event_id,
+        events:events (
+          name,
+          datetime,
+          image_url
+        )
+      `
+      )
+      .eq("status", "active");
+
+    if (error) return;
+
+    const formatted = (data ?? []).map((t) => {
+      const event = Array.isArray(t.events) ? t.events[0] : t.events;
+      return {
+        id: t.id,
+        eventTitle: event?.name ?? "Unknown",
+        date: event?.datetime
+          ? new Date(event.datetime).toLocaleDateString("en-GB")
+          : "TBD",
+        price: t.current_price,
+        quantity: t.quantity_available,
+        imageUrl:
+          typeof event?.image_url === "string" &&
+          /^https?:\/\//i.test(event.image_url)
+            ? event.image_url
+            : undefined,
+      };
+    });
+
+    setTickets(formatted);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetchTickets = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+    let active = true;
+    (async () => {
+      await fetchTickets();
+    })();
 
-      if (!user) {
-        setUserName("Guest");
-      } else {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("first_name")
-          .eq("id", user.id)
-          .maybeSingle();
+    // live refresh on price/qty/status changes
+    const channel = supabase
+      .channel("tickets-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets" },
+        () => {
+          if (active) fetchTickets();
+        }
+      )
+      .subscribe();
 
-        setUserName(profile?.first_name?.trim() || "Guest");
-      }
+    const eventsChannel = supabase
+      .channel("events-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "events" },
+        () => fetchTickets()
+      )
+      .subscribe();
 
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          `
-          id,
-          current_price,
-          quantity_available,
-          event_id,
-          events:events (
-            name,
-            datetime,
-            image_url
-          )
-        `
-        )
-        .eq("status", "active");
-
-      if (error) return;
-
-      const formatted = (data ?? []).map((t) => {
-        const event = Array.isArray(t.events) ? t.events[0] : t.events;
-
-        return {
-          id: t.id,
-          eventTitle: event?.name ?? "Unknown",
-          date: event?.datetime
-            ? new Date(event.datetime).toLocaleDateString("en-GB")
-            : "TBD",
-          price: t.current_price,
-          quantity: t.quantity_available,
-          imageUrl:
-            typeof event?.image_url === "string" &&
-            /^https?:\/\//i.test(event.image_url)
-              ? event.image_url
-              : undefined,
-        };
-      });
-
-      setTickets(formatted);
+    return () => {
+      active = false;
+      supabase.removeChannel(channel);
+      supabase.removeChannel(eventsChannel);
     };
-
-    fetchTickets();
   }, []);
 
-  return { tickets, userName };
+  return { tickets, loading };
 };

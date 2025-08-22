@@ -139,6 +139,11 @@ export default function ProfileScreen() {
     };
   }, []);
 
+  // הצג רק כרטיסים במצב "active" או "sold"
+  const visibleTickets = tickets.filter(
+    (ticket) => ticket.status === "active" || ticket.status === "sold"
+  );
+
   if (loading) {
     return (
       <View style={styles.centerTop}>
@@ -169,6 +174,7 @@ export default function ProfileScreen() {
         </Text>
         <Text>Email: {profile.email}</Text>
         <Text>Phone: {profile.phone}</Text>
+        <Text>Balance: {profile.balance.toLocaleString()} coins</Text>
         <Text>City: {profile.city}</Text>
         <Text>Birth Year: {profile.birth_year}</Text>
         <Text>Gender: {profile.gender}</Text>
@@ -176,7 +182,7 @@ export default function ProfileScreen() {
 
       <Text style={[styles.title, { marginTop: 24 }]}>Tickets I'm Selling</Text>
       <View style={styles.ticketsList}>
-        {tickets.length === 0 ? (
+        {visibleTickets.length === 0 ? (
           <View style={{ alignItems: "center" }}>
             <Text>No tickets for sale</Text>
             <Pressable
@@ -189,7 +195,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : (
-          tickets.map((ticket, index) => (
+          visibleTickets.map((ticket, index) => (
             <TicketCard
               key={ticket.id ?? index}
               {...ticket}

@@ -1,17 +1,14 @@
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
+import useProfile from "@/hooks/useProfile";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import Head from "expo-router/head";
-import { useEffect, useState } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import "./styles.css";
 
 export default function RootLayout() {
-  const router = useRouter();
-
   return (
     <>
       <Head>
@@ -29,29 +26,13 @@ export default function RootLayout() {
 function HeaderLeftButton() {
   const router = useRouter();
   const { userName, loading, user } = useAuthContext();
-  const [balance, setBalance] = useState<number | null>(null);
-
-  useEffect(() => {
-    const fetchBalance = async () => {
-      if (user) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("balance")
-          .eq("id", user.id)
-          .single();
-        setBalance(data?.balance ?? 0);
-      } else {
-        setBalance(null);
-      }
-    };
-    fetchBalance();
-  }, [user]);
+  const { balance, loading: profileLoading } = useProfile();
 
   return (
     <TouchableOpacity
       onPress={() => router.push(user ? "/(user)/profile" : "/(auth)/login")}
       style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
-      disabled={loading}
+      disabled={loading || profileLoading}
     >
       {/* Profile Icon + Name */}
       <Ionicons name="person-circle-outline" size={28} color="black" />

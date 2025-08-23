@@ -15,6 +15,7 @@ export default function TicketGrid({ tickets, onSelect }: TicketGridProps) {
         flexWrap: "wrap",
         justifyContent: "center",
         columnGap: 12,
+        marginTop: 12,
       }}
     >
       {tickets.map((ticket, index) => (

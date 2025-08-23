@@ -2,6 +2,22 @@ import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import { useEffect, useState } from "react";
 
+type TicketRow = {
+  id: string;
+  current_price: number | null;
+  quantity_available: number | null;
+  event_id: string;
+  // Supabase nested returns either a single row or array depending on relation config
+  events:
+    | { name: string | null; datetime: string | null; image_url: string | null }
+    | {
+        name: string | null;
+        datetime: string | null;
+        image_url: string | null;
+      }[]
+    | null;
+};
+
 export const useTickets = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -24,9 +40,16 @@ export const useTickets = () => {
       )
       .eq("status", "active");
 
-    if (error) return;
+    if (error) {
+      console.error("[useTickets] fetch error:", error);
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
 
-    const formatted = (data ?? []).map((t) => {
+    const rows = (data ?? []) as TicketRow[];
+
+    const formatted = rows.map((t) => {
       const event = Array.isArray(t.events) ? t.events[0] : t.events;
       return {
         id: t.id,
@@ -34,13 +57,14 @@ export const useTickets = () => {
         date: event?.datetime
           ? new Date(event.datetime).toLocaleDateString("en-GB")
           : "TBD",
-        price: t.current_price,
-        quantity: t.quantity_available,
+        price: Number(t.current_price ?? 0),
+        quantity: Number(t.quantity_available ?? 0),
         imageUrl:
           typeof event?.image_url === "string" &&
           /^https?:\/\//i.test(event.image_url)
             ? event.image_url
             : undefined,
+        status: "active" as any,
       };
     });
 
@@ -50,9 +74,8 @@ export const useTickets = () => {
 
   useEffect(() => {
     let active = true;
-    (async () => {
-      await fetchTickets();
-    })();
+
+    fetchTickets();
 
     // live refresh on price/qty/status changes
     const channel = supabase
@@ -82,5 +105,5 @@ export const useTickets = () => {
     };
   }, []);
 
-  return { tickets, loading };
+  return { tickets, loading, refetch: fetchTickets };
 };

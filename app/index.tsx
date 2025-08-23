@@ -6,6 +6,7 @@ import TicketFilters from "@/components/tickets/TicketFilters";
 import TicketGrid from "@/components/tickets/TicketGrid";
 import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTickets } from "@/hooks/useFilteredTickets";
+import { useProfile } from "@/hooks/useProfile";
 import { useTickets } from "@/hooks/useTickets";
 import {
   FILTER_OPTIONS,
@@ -29,7 +30,8 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
-  const { tickets } = useTickets();
+  const { refetchProfile } = useProfile();
+  const { tickets, refetch } = useTickets();
   const { userName, loading: authLoading } = useAuth();
   const filteredTickets = useFilteredTickets({
     tickets,
@@ -75,7 +77,11 @@ export default function HomePage() {
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView
         style={{ padding: 16 }}
-        contentContainerStyle={{ zIndex: 0, position: "relative" }}
+        contentContainerStyle={{
+          zIndex: 0,
+          position: "relative",
+          paddingBottom: 100,
+        }}
         onScrollBeginDrag={() => {
           setSortOpen(false);
           setFilterOpen(false);
@@ -112,6 +118,12 @@ export default function HomePage() {
         visible={!!selectedTicket}
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
+        onPurchased={() => {
+          refetch?.();
+          refetchProfile();
+          setSelectedTicket(null);
+          // (separately refresh profile/balance if your auth hook exposes a refetch)
+        }}
       />
 
       {/* Sort Dropdown */}

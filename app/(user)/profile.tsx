@@ -63,31 +63,31 @@ export default function ProfileScreen() {
 
   const fetchProfileAndTickets = async () => {
     setLoading(true);
+    try {
+      // Get user session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (!userId) {
+        setProfile(null);
+        setTickets([]);
+        setLoading(false);
+        return;
+      }
 
-    // Get user session
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id;
-    if (!userId) {
-      setProfile(null);
-      setTickets([]);
-      setLoading(false);
-      return;
-    }
+      // Fetch profile
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    // Fetch profile
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+      setProfile(profileData);
 
-    setProfile(profileData);
-
-    // Fetch tickets the user is selling (user_id)
-    const { data: ticketsData } = await supabase
-      .from("tickets")
-      .select(
-        `
+      // Fetch tickets the user is selling (user_id)
+      const { data: ticketsData } = await supabase
+        .from("tickets")
+        .select(
+          `
           id,
           current_price,
           quantity_available,
@@ -99,30 +99,33 @@ export default function ProfileScreen() {
             image_url
           )
         `
-      )
-      .eq("user_id", userId);
+        )
+        .eq("user_id", userId);
 
-    const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
-      const event = Array.isArray(t.events) ? t.events[0] : t.events;
-      return {
-        id: t.id,
-        eventTitle: event?.name ?? "Unknown",
-        date: event?.datetime
-          ? new Date(event.datetime).toLocaleDateString("en-GB")
-          : "TBD",
-        price: t.current_price,
-        quantity: t.quantity_available,
-        imageUrl:
-          typeof event?.image_url === "string" &&
-          /^https?:\/\//i.test(event.image_url)
-            ? event.image_url
-            : undefined,
-        status: t.status,
-      };
-    });
+      const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
+        const event = Array.isArray(t.events) ? t.events[0] : t.events;
+        return {
+          id: t.id,
+          eventTitle: event?.name ?? "Unknown",
+          date: event?.datetime
+            ? new Date(event.datetime).toLocaleDateString("en-GB")
+            : "TBD",
+          price: t.current_price,
+          quantity: t.quantity_available,
+          imageUrl:
+            typeof event?.image_url === "string" &&
+            /^https?:\/\//i.test(event.image_url)
+              ? event.image_url
+              : undefined,
+          status: t.status,
+        };
+      });
 
-    setTickets(formattedTickets);
-    setLoading(false);
+      setTickets(formattedTickets);
+      setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {

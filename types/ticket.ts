@@ -6,4 +6,5 @@ export interface Ticket {
   imageUrl?: string;
   id?: string;
   status: "active" | "sold" | "expired" | "removed";
+  sellerId?: string;
 }

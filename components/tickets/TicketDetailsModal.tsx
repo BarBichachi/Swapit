@@ -1,10 +1,11 @@
 import TicketModal from "@/components/tickets/TicketModal";
 import useAuthGuard from "@/hooks/useAuthGuard";
+import useProfile from "@/hooks/useProfile";
 import { purchaseTicketNaive } from "@/lib/purchase";
 import { Ticket } from "@/types/ticket";
 import Slider from "@react-native-assets/slider";
-import { useEffect, useState } from "react";
-import { Alert, Pressable, Text } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Pressable, Text } from "react-native";
 
 interface TicketDetailsModalProps {
   visible: boolean;
@@ -21,7 +22,11 @@ export default function TicketDetailsModal({
 }: TicketDetailsModalProps) {
   const [suggestedPrice, setSuggestedPrice] = useState(ticket?.price ?? 0);
   const [buying, setBuying] = useState(false);
+  const inFlightRef = useRef(false);
+  const idempoRef = useRef<string | undefined>(undefined);
   const { isAuthed, requireAuth } = useAuthGuard();
+  const { userId } = useProfile();
+  const isMine = !!userId && ticket?.sellerId === userId;
 
   useEffect(() => {
     if (visible && ticket?.price != null) {
@@ -29,38 +34,121 @@ export default function TicketDetailsModal({
     }
   }, [visible, ticket?.price]);
 
+  useEffect(() => {
+    if (!visible) return;
+    inFlightRef.current = false;
+    idempoRef.current = undefined;
+    setBuying(false);
+  }, [visible, ticket?.id]);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        inFlightRef.current = false;
+        idempoRef.current = undefined;
+        setBuying(false);
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVis);
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVis);
+      }
+    };
+  }, []);
+
   if (!ticket) return null;
 
   const isFullPrice = suggestedPrice === ticket.price;
   const buttonColor = isFullPrice ? "#4FC3F7" : "#FFA726";
-  const authedText = isFullPrice ? "Purchase" : "Offer";
-  const buttonText = isAuthed ? authedText : `Login to ${authedText}`;
+  const authedText = isMine
+    ? "You own this ticket"
+    : isFullPrice
+    ? "Purchase"
+    : "Offer";
+  const buttonText = isMine
+    ? authedText
+    : isAuthed
+    ? authedText
+    : `Login to ${authedText}`;
 
   // runs only after auth is confirmed
   const actionCore = async () => {
+    if (isMine) {
+      alert("You can’t purchase your own ticket.");
+      return;
+    }
+
     try {
       if (isFullPrice) {
         setBuying(true);
-        await purchaseTicketNaive(String(ticket.id), 1); // quantity = 1 for now
-        Alert.alert("Success", "Purchase completed.");
+        if (!idempoRef.current) {
+          idempoRef.current =
+            (globalThis as any)?.crypto?.randomUUID?.() ??
+            `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        }
+        await purchaseTicketNaive(
+          String(ticket.id),
+          1,
+          idempoRef.current,
+          userId!
+        );
+
+        alert("Purchase completed.");
         onPurchased?.();
       } else {
-        Alert.alert("Offer sent", `Suggested price: ${suggestedPrice}₪`);
+        alert(`Suggested price: ${suggestedPrice}₪`);
       }
       onClose();
     } catch (e: any) {
-      Alert.alert("Purchase failed", e?.message ?? "Unknown error");
+      alert(e?.message ?? "Unknown error");
     } finally {
       setBuying(false);
+      idempoRef.current = undefined;
     }
   };
 
-  const handleAction = () => {
+  const handleAction = async () => {
+    // stale guard release after tab switch
+    if (!buying && inFlightRef.current) inFlightRef.current = false;
+
+    // prevent double-press / rapid re-entry
+    if (inFlightRef.current || buying) return;
+    inFlightRef.current = true;
+
+    // If we already know the user (from useProfile), run directly
+    if (userId) {
+      try {
+        await actionCore();
+      } finally {
+        inFlightRef.current = false;
+        idempoRef.current = undefined;
+      }
+      return;
+    }
+
     // If not logged in: close modal and redirect to login (handled in hook)
-    requireAuth(actionCore, {
-      onFail: onClose,
-      redirectParams: { open: "ticket", ticketId: String(ticket.id) },
-    });
+    requireAuth(
+      async () => {
+        await actionCore(); // actionCore manages buying + idempotency
+        inFlightRef.current = false;
+        idempoRef.current = undefined;
+      },
+      {
+        onFail: () => {
+          // auth failed or redirected: release the guard
+          inFlightRef.current = false;
+          idempoRef.current = undefined;
+          onClose();
+        },
+        redirectParams: { open: "ticket", ticketId: String(ticket.id) },
+      }
+    );
   };
 
   return (
@@ -87,7 +175,7 @@ export default function TicketDetailsModal({
           </Text>
           <Pressable
             onPress={handleAction}
-            disabled={buying}
+            disabled={buying || isMine}
             style={[
               {
                 marginTop: 10,
@@ -95,7 +183,7 @@ export default function TicketDetailsModal({
                 borderRadius: 8,
                 width: "30%",
                 backgroundColor: buttonColor,
-                opacity: buying ? 0.7 : 1,
+                opacity: buying || isMine ? 0.7 : 1,
               },
             ]}
           >

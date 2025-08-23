@@ -1,14 +1,41 @@
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
 import useProfile from "@/hooks/useProfile";
+import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import Head from "expo-router/head";
+import { useEffect } from "react";
 import { Text, TouchableOpacity, View } from "react-native";
 import "./styles.css";
 
 export default function RootLayout() {
+  useEffect(() => {
+    const onVis = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "visible") {
+        // resume token refresh when user returns
+        supabase.auth.startAutoRefresh();
+      } else {
+        // pause to avoid timers being throttled in background tabs
+        supabase.auth.stopAutoRefresh();
+      }
+    };
+
+    // run once on mount to set correct state
+    onVis();
+
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVis);
+    }
+    return () => {
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVis);
+      }
+    };
+  }, []);
+
   return (
     <>
       <Head>

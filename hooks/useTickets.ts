@@ -28,6 +28,7 @@ export const useTickets = () => {
       .select(
         `
         id,
+        user_id,
         current_price,
         quantity_available,
         event_id,
@@ -38,7 +39,8 @@ export const useTickets = () => {
         )
       `
       )
-      .eq("status", "active");
+      .eq("status", "active")
+      .gt("quantity_available", 0);
 
     if (error) {
       console.error("[useTickets] fetch error:", error);
@@ -53,6 +55,7 @@ export const useTickets = () => {
       const event = Array.isArray(t.events) ? t.events[0] : t.events;
       return {
         id: t.id,
+        sellerId: (t as any).user_id ?? undefined,
         eventTitle: event?.name ?? "Unknown",
         date: event?.datetime
           ? new Date(event.datetime).toLocaleDateString("en-GB")
@@ -64,7 +67,7 @@ export const useTickets = () => {
           /^https?:\/\//i.test(event.image_url)
             ? event.image_url
             : undefined,
-        status: "active" as any,
+        status: (t as any).status as any,
       };
     });
 

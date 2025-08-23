@@ -53,15 +53,23 @@ function HeaderLeftButton() {
       style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
       disabled={loading}
     >
+      {/* Profile Icon + Name */}
       <Ionicons name="person-circle-outline" size={28} color="black" />
       <Text style={{ marginLeft: 6, fontSize: 16 }}>
         {loading ? "…" : userName}
-        {user && balance !== null && (
-          <Text style={{ marginLeft: 8, fontSize: 12}}>
-            {" | Balance: " + balance.toLocaleString() + " coins"}
-          </Text>
-        )}
       </Text>
+
+      {/* Balance Section */}
+      {user && balance !== null && (
+        <View
+          style={{ flexDirection: "row", alignItems: "center", marginLeft: 24 }}
+        >
+          <Ionicons name="wallet-outline" size={28} color="black" />
+          <Text style={{ marginLeft: 4, fontSize: 16 }}>
+            {balance.toLocaleString()}
+          </Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }

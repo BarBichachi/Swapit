@@ -110,7 +110,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // --- validate & highlight missing fields ---
+      // validate & highlight missing fields
       const missing = new Set<string>();
       const email = form.email.trim().toLowerCase();
       const password = form.password;
@@ -121,10 +121,10 @@ export default function LoginPage() {
       if (missing.size) {
         setEmptyFields(missing);
         setError("Please fill in all fields.");
-        return; // finally will run
+        return;
       }
 
-      // --- sign in ---
+      // sign in
       const { error: loginError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -133,20 +133,19 @@ export default function LoginPage() {
       if (loginError) {
         setError(loginError.message);
 
-        // Highlight likely-problem fields based on the error text
+        // highlight likely-problem fields based on the error text
         const msg = loginError.message.toLowerCase();
         if (msg.includes("invalid") || msg.includes("credentials")) {
           setEmptyFields(new Set(["email", "password"]));
         } else if (msg.includes("confirm") || msg.includes("verify")) {
           setEmptyFields(new Set(["email"]));
         } else {
-          // generic highlight: password
           setEmptyFields(new Set(["password"]));
         }
-        return; // finally will run
+        return;
       }
 
-      // --- post-signin verification fallback (rare event-miss) ---
+      // post-signin verification fallback (rare event-miss)
       const { data } = await supabase.auth.getSession();
       if (!data.session?.user) {
         await new Promise((r) => setTimeout(r, 50));

@@ -56,11 +56,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: sub } = supabase.auth.onAuthStateChange(
       async (_evt, session) => {
         if (!mountedRef.current) return;
-        const sessionUser = session?.user ?? null;
-        setUser(sessionUser);
-        if (sessionUser) {
+
+        if (_evt === "SIGNED_OUT") {
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
+
+        const { data: live } = await supabase.auth.getSession();
+        const nextUser = live?.session?.user ?? session?.user ?? null;
+
+        setUser(nextUser);
+
+        if (nextUser) {
           setLoading(true);
-          await fetchProfile(sessionUser.id);
+          await fetchProfile(nextUser.id);
           setLoading(false);
         } else {
           setProfile(null);
@@ -76,8 +87,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Reconcile when tab/window focus or visibility changes
+  useEffect(() => {
+    const reconcile = async () => {
+      const { data } = await supabase.auth.getSession();
+      const nextUser = data?.session?.user ?? null;
+
+      setUser((prev: any) => (prev?.id === nextUser?.id ? prev : nextUser));
+      if (nextUser) await fetchProfile(nextUser.id);
+      else setProfile(null);
+    };
+
+    const onFocus = () => reconcile();
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") reconcile();
+    };
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const logout = async () => {
-    await supabase.auth.signOut();
+    setLoading(true);
+    await supabase.auth.signOut({ scope: "local" });
+    await supabase.auth.getSession();
+
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
   };
 
   const refreshProfile = async () => {

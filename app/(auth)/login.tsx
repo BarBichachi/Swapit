@@ -1,43 +1,100 @@
 "use client";
 
 import Input from "@/components/global/Input";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emptyFields, setEmptyFields] = useState<Set<string>>(new Set());
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const router = useRouter();
+  const params = useLocalSearchParams<{
+    redirect?: string;
+    open?: string;
+    ticketId?: string;
+    source?: string;
+  }>();
+  const [redirecting, setRedirecting] = useState(false);
+  const hasNavigatedRef = useRef(false);
+  const { user } = useAuthContext();
 
+  // Helper to sanitize + compute destination once
+  const computeDest = () => {
+    const rawDest = params.redirect || "/";
+    const dest =
+      typeof rawDest === "string" && rawDest.startsWith("/") ? rawDest : "/";
+
+    const src = Array.isArray(params.source) ? params.source[0] : params.source;
+    const open = Array.isArray(params.open) ? params.open[0] : params.open;
+    const ticketId = Array.isArray(params.ticketId)
+      ? params.ticketId[0]
+      : params.ticketId;
+
+    const shouldCarry = src === "guard" && !!open && !!ticketId;
+    return {
+      dest,
+      open: shouldCarry ? open : undefined,
+      ticketId: shouldCarry ? ticketId : undefined,
+    };
+  };
+
+  const destInfo = useMemo(computeDest, [
+    params.redirect,
+    params.source,
+    params.open,
+    params.ticketId,
+  ]);
+  const pathname = usePathname();
+
+  // Redirects whenever we're logged in
   useEffect(() => {
-    setForm({ email: "", password: "" });
-    setError("");
-    setLoading(false);
-    setEmptyFields(new Set());
+    if (!user || redirecting || hasNavigatedRef.current) return;
 
-    const checkSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      setIsLoggedIn(!!data.session?.user);
-    };
-    checkSession();
+    const { dest, open, ticketId } = destInfo;
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setIsLoggedIn(!!session?.user);
-      setLoading(false); // תאפס טעינה בכל שינוי התחברות
-    });
-    return () => {
-      listener?.subscription?.unsubscribe();
-    };
-  }, []);
+    // --- SAFETY GUARDS: do not "redirect" to the same page or an auth route ---
+    const isAuthRoute = dest.startsWith("/(auth)");
+    const isSameRoute = dest === pathname;
+
+    if (isAuthRoute || isSameRoute) {
+      // we're already here or it's an auth screen — don't enter the "blank" state
+      return;
+    }
+
+    hasNavigatedRef.current = true;
+    setRedirecting(true);
+
+    router.replace({
+      pathname: dest,
+      params: open && ticketId ? { open, ticketId } : {},
+    } as never);
+  }, [user, redirecting, destInfo, router, pathname]);
+
+  // Backstop: if redirecting stays true but no navigation happens, clear it
+  useEffect(() => {
+    if (!redirecting) return;
+    const t = setTimeout(() => setRedirecting(false), 800);
+    return () => clearTimeout(t);
+  }, [redirecting]);
+
+  // When user becomes null (logged out), allow future redirects again
+  useEffect(() => {
+    if (!user) {
+      hasNavigatedRef.current = false;
+      setRedirecting(false);
+    }
+  }, [user]);
+
+  // Don't render while redirecting or before we've checked auth state
+  if (redirecting) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
-
     setEmptyFields((prev) => {
       const updated = new Set(prev);
       updated.delete(name);
@@ -47,34 +104,60 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (redirecting) return; // avoid double submit during navigation
+
     setError("");
     setLoading(true);
 
-    const newEmptyFields = new Set<string>();
-    if (!form.email.trim()) newEmptyFields.add("email");
-    if (!form.password.trim()) newEmptyFields.add("password");
+    try {
+      // validate & highlight missing fields
+      const missing = new Set<string>();
+      const email = form.email.trim().toLowerCase();
+      const password = form.password;
 
-    if (newEmptyFields.size > 0) {
-      setEmptyFields(newEmptyFields);
-      setError("Please fill in all fields.");
+      if (!email) missing.add("email");
+      if (!password.trim()) missing.add("password");
+
+      if (missing.size) {
+        setEmptyFields(missing);
+        setError("Please fill in all fields.");
+        return;
+      }
+
+      // sign in
+      const { error: loginError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (loginError) {
+        setError(loginError.message);
+
+        // highlight likely-problem fields based on the error text
+        const msg = loginError.message.toLowerCase();
+        if (msg.includes("invalid") || msg.includes("credentials")) {
+          setEmptyFields(new Set(["email", "password"]));
+        } else if (msg.includes("confirm") || msg.includes("verify")) {
+          setEmptyFields(new Set(["email"]));
+        } else {
+          setEmptyFields(new Set(["password"]));
+        }
+        return;
+      }
+
+      // post-signin verification fallback (rare event-miss)
+      const { data } = await supabase.auth.getSession();
+      if (!data.session?.user) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+
+      // success: clear any previous highlights
+      setEmptyFields(new Set());
+    } catch (err: any) {
+      setError(err?.message ?? "Login failed");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    const { error: loginError } = await supabase.auth.signInWithPassword({
-      email: form.email,
-      password: form.password,
-    });
-
-    if (loginError) {
-      setError(loginError.message);
-      setLoading(false);
-      return;
-    }
-
-    setIsLoggedIn(true);
-    setLoading(false);
-    router.replace("/");
   };
 
   // TODO: TO BE USED IN THE FUTURE
@@ -99,29 +182,15 @@ export default function LoginPage() {
     }
   };
 
-  const handleLogout = async () => {
-    setLoading(true);
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-    } else {
-      setIsLoggedIn(false);
-      setForm({ email: "", password: "" });
-      setError("");
-      setLoading(false);
-      router.replace("/"); // מעבר לעמוד הבית אחרי התנתקות
-    }
-  };
-
-  if (isLoggedIn) {
+  if (user) {
     return (
       <div className="form-container">
         <h1 className="form-title" style={{ marginBottom: "0.5rem" }}>
           You are already logged in!
         </h1>
-        <button className="form-button" onClick={handleLogout} disabled={loading}>
-          {loading ? "Logging out..." : "Logout"}
+        {/* Optional: a link to go back */}
+        <button className="form-button" onClick={() => router.replace("/")}>
+          Go Home
         </button>
       </div>
     );

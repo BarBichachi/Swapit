@@ -121,25 +121,21 @@ form {
 .toolbar {
   position: sticky;
   z-index: 10;
-
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  margin-bottom: 16px;
-  gap: 0px;
-
-  padding: 12px;
+  margin: 0 auto;
+  padding: 8px 16px;
   max-width: 960px;
+  border-bottom: 1px solid #eee;
 }
 
 /* Search bar wrapper */
 .toolbar__search {
-  min-height: 36px;
-  padding: 0 10px;
-  width: 400px;
-  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  align-self: center;
 }
 
 /* Controls row */

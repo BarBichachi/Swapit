@@ -63,31 +63,31 @@ export default function ProfileScreen() {
 
   const fetchProfileAndTickets = async () => {
     setLoading(true);
+    try {
+      // Get user session
+      const { data: sessionData } = await supabase.auth.getSession();
+      const userId = sessionData?.session?.user?.id;
+      if (!userId) {
+        setProfile(null);
+        setTickets([]);
+        setLoading(false);
+        return;
+      }
 
-    // Get user session
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id;
-    if (!userId) {
-      setProfile(null);
-      setTickets([]);
-      setLoading(false);
-      return;
-    }
+      // Fetch profile
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single();
 
-    // Fetch profile
-    const { data: profileData } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
+      setProfile(profileData);
 
-    setProfile(profileData);
-
-    // Fetch tickets the user is selling (user_id)
-    const { data: ticketsData } = await supabase
-      .from("tickets")
-      .select(
-        `
+      // Fetch tickets the user is selling (user_id)
+      const { data: ticketsData } = await supabase
+        .from("tickets")
+        .select(
+          `
           id,
           current_price,
           quantity_available,
@@ -99,38 +99,38 @@ export default function ProfileScreen() {
             image_url
           )
         `
-      )
-      .eq("user_id", userId);
+        )
+        .eq("user_id", userId);
 
-    // יצירת מערך tickets לפי הטיפוס Ticket
-    const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
-      const event = Array.isArray(t.events) ? t.events[0] : t.events;
-      return {
-        id: t.id,
-        eventTitle: event?.name ?? "Unknown",
-        date: event?.datetime
-          ? new Date(event.datetime).toLocaleDateString("en-GB")
-          : "TBD",
-        price: t.current_price,
-        quantity: t.quantity_available,
-        imageUrl:
-          typeof event?.image_url === "string" &&
-          /^https?:\/\//i.test(event.image_url)
-            ? event.image_url
-            : undefined,
-        status: t.status,
-        // אפשר להוסיף כאן שדות נוספים לפי הטיפוס שלך
-      };
-    });
+      const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
+        const event = Array.isArray(t.events) ? t.events[0] : t.events;
+        return {
+          id: t.id,
+          eventTitle: event?.name ?? "Unknown",
+          date: event?.datetime
+            ? new Date(event.datetime).toLocaleDateString("en-GB")
+            : "TBD",
+          price: t.current_price,
+          quantity: t.quantity_available,
+          imageUrl:
+            typeof event?.image_url === "string" &&
+            /^https?:\/\//i.test(event.image_url)
+              ? event.image_url
+              : undefined,
+          status: t.status,
+        };
+      });
 
-    setTickets(formattedTickets);
-    setLoading(false);
+      setTickets(formattedTickets);
+      setLoading(false);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchProfileAndTickets();
 
-    // האזנה לשינוי התחברות/התנתקות
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         fetchProfileAndTickets();
@@ -141,6 +141,11 @@ export default function ProfileScreen() {
       listener?.subscription?.unsubscribe();
     };
   }, []);
+
+  // הצג רק כרטיסים במצב "active" או "sold"
+  const visibleTickets = tickets.filter(
+    (ticket) => ticket.status === "active" || ticket.status === "sold"
+  );
 
   if (loading) {
     return (
@@ -172,6 +177,7 @@ export default function ProfileScreen() {
         </Text>
         <Text>Email: {profile.email}</Text>
         <Text>Phone: {profile.phone}</Text>
+        <Text>Balance: {profile.balance.toLocaleString()} coins</Text>
         <Text>City: {profile.city}</Text>
         <Text>Birth Year: {profile.birth_year}</Text>
         <Text>Gender: {profile.gender}</Text>
@@ -179,7 +185,7 @@ export default function ProfileScreen() {
 
       <Text style={[styles.title, { marginTop: 24 }]}>Tickets I'm Selling</Text>
       <View style={styles.ticketsList}>
-        {tickets.length === 0 ? (
+        {visibleTickets.length === 0 ? (
           <View style={{ alignItems: "center" }}>
             <Text>No tickets for sale</Text>
             <Pressable
@@ -192,7 +198,7 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : (
-          tickets.map((ticket, index) => (
+          visibleTickets.map((ticket, index) => (
             <TicketCard
               key={ticket.id ?? index}
               {...ticket}

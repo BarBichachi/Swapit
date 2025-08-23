@@ -4,7 +4,9 @@ import WelcomeHeader from "@/components/home/WelcomeHeader";
 import TicketDetailsModal from "@/components/tickets/TicketDetailsModal";
 import TicketFilters from "@/components/tickets/TicketFilters";
 import TicketGrid from "@/components/tickets/TicketGrid";
+import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTickets } from "@/hooks/useFilteredTickets";
+import { useProfile } from "@/hooks/useProfile";
 import { useTickets } from "@/hooks/useTickets";
 import {
   FILTER_OPTIONS,
@@ -13,8 +15,8 @@ import {
   SortOption,
 } from "@/lib/constants/tickets";
 import { Ticket } from "@/types/ticket";
-import { useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
 import "./styles.css";
 
@@ -28,27 +30,65 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
-  const { tickets, userName } = useTickets();
-
+  const { refetchProfile } = useProfile();
+  const { tickets, refetch } = useTickets();
+  const { userName, loading: authLoading } = useAuth();
   const filteredTickets = useFilteredTickets({
     tickets,
     searchTerm,
     filterOption,
     sortOption,
   });
+  const pathname = usePathname();
+  const params = useLocalSearchParams<{
+    open?: string | string[];
+    ticketId?: string | string[];
+  }>();
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+
+  // capture intent from URL once
+  useEffect(() => {
+    const open = Array.isArray(params.open) ? params.open[0] : params.open;
+    const ticketId = Array.isArray(params.ticketId)
+      ? params.ticketId[0]
+      : params.ticketId;
+    if (open === "ticket" && ticketId) setPendingTicketId(String(ticketId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.open, params.ticketId]);
+
+  // when tickets are loaded AND auth is settled, open and then clean URL
+  useEffect(() => {
+    if (!pendingTicketId) return;
+    if (authLoading) return;
+    if (!userName) return;
+    if (!tickets?.length) return;
+
+    const t = tickets.find((x) => String(x.id) === pendingTicketId);
+    if (!t) return;
+
+    setSelectedTicket(t);
+
+    // Clean URL so it won't reopen again
+    router.replace({ pathname, params: {} } as never);
+    setPendingTicketId(null);
+  }, [pendingTicketId, tickets, authLoading, userName, pathname, router]);
 
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView
         style={{ padding: 16 }}
-        contentContainerStyle={{ zIndex: 0, position: "relative" }}
+        contentContainerStyle={{
+          zIndex: 0,
+          position: "relative",
+          paddingBottom: 100,
+        }}
         onScrollBeginDrag={() => {
           setSortOpen(false);
           setFilterOpen(false);
         }}
       >
         {/* Welcome Section */}
-        <WelcomeHeader userName={userName} />
+        <WelcomeHeader userName={authLoading ? "…" : userName} />
 
         {/* Ticket Filters */}
         <TicketFilters
@@ -78,6 +118,12 @@ export default function HomePage() {
         visible={!!selectedTicket}
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
+        onPurchased={() => {
+          refetch?.();
+          refetchProfile();
+          setSelectedTicket(null);
+          // (separately refresh profile/balance if your auth hook exposes a refetch)
+        }}
       />
 
       {/* Sort Dropdown */}

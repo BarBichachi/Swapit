@@ -69,7 +69,12 @@ export default function TicketFilters({
       {/* Search */}
       <div
         className="toolbar__search"
-        style={{ width: 500, maxWidth: "100%" } as any}
+        style={
+          {
+            width: 500,
+            maxWidth: "100%",
+          } as any
+        }
       >
         <Input
           placeholder="Search..."

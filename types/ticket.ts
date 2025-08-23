@@ -5,4 +5,6 @@ export interface Ticket {
   quantity: number;
   imageUrl?: string;
   id?: string;
+  status: "active" | "sold" | "expired" | "removed";
+  sellerId?: string;
 }

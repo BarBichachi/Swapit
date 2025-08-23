@@ -17,12 +17,26 @@ export default function TicketUpdateModal({
   onUpdated?: () => void;
 }) {
   const [newPrice, setNewPrice] = useState(ticket?.price ?? 0);
+  const [originalPrice, setOriginalPrice] = useState<number | null>(null);
 
   useEffect(() => {
     if (visible && ticket?.price != null) {
       setNewPrice(ticket.price);
+
+      // שליפת original_price מהדאטהבייס
+      const fetchOriginalPrice = async () => {
+        if (ticket?.id) {
+          const { data } = await supabase
+            .from("tickets")
+            .select("original_price")
+            .eq("id", ticket.id)
+            .single();
+          setOriginalPrice(data?.original_price ?? ticket.price);
+        }
+      };
+      fetchOriginalPrice();
     }
-  }, [visible, ticket?.price]);
+  }, [visible, ticket?.price, ticket?.id]);
 
   if (!ticket) return null;
 
@@ -65,8 +79,8 @@ export default function TicketUpdateModal({
         <>
           <Slider
             style={{ width: "60%", height: 20, cursor: "pointer", marginTop: 20 }}
-            minimumValue={0}
-            maximumValue={ticket.price * 2}
+            minimumValue={1}
+            maximumValue={originalPrice ?? ticket.price}
             step={1}
             value={newPrice}
             onValueChange={setNewPrice}

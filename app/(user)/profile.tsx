@@ -1,4 +1,5 @@
 import TicketCard from "@/components/tickets/TicketCard";
+import TicketModal from "@/components/tickets/TicketModal";
 import TicketUpdateModal from "@/components/tickets/TicketUpdateModal";
 import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
@@ -59,35 +60,42 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // כרטיסים שהמשתמש רכש
+  const [purchasedTickets, setPurchasedTickets] = useState<Ticket[]>([]);
+  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<Ticket | null>(null);
+  const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
+
   const router = useRouter();
 
   const fetchProfileAndTickets = async () => {
     setLoading(true);
-    try {
-      // Get user session
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) {
-        setProfile(null);
-        setTickets([]);
-        setLoading(false);
-        return;
-      }
 
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
+    // Get user session
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData?.session?.user?.id;
+    if (!userId) {
+      setProfile(null);
+      setTickets([]);
+      setPurchasedTickets([]);
+      setLoading(false);
+      return;
+    }
 
-      setProfile(profileData);
+    // Fetch profile
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
 
-      // Fetch tickets the user is selling (user_id)
-      const { data: ticketsData } = await supabase
-        .from("tickets")
-        .select(
-          `
+    setProfile(profileData);
+
+    // Fetch tickets the user is selling (user_id)
+    const { data: ticketsData } = await supabase
+      .from("tickets")
+      .select(
+        `
           id,
           current_price,
           quantity_available,
@@ -99,10 +107,58 @@ export default function ProfileScreen() {
             image_url
           )
         `
-        )
-        .eq("user_id", userId);
+      )
+      .eq("user_id", userId);
 
-      const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
+    const formattedTickets: Ticket[] = (ticketsData ?? []).map((t: any) => {
+      const event = Array.isArray(t.events) ? t.events[0] : t.events;
+      return {
+        id: t.id,
+        eventTitle: event?.name ?? "Unknown",
+        date: event?.datetime
+          ? new Date(event.datetime).toLocaleDateString("en-GB")
+          : "TBD",
+        price: t.current_price,
+        quantity: t.quantity_available,
+        imageUrl:
+          typeof event?.image_url === "string" &&
+          /^https?:\/\//i.test(event.image_url)
+            ? event.image_url
+            : undefined,
+        status: t.status,
+      };
+    });
+
+    setTickets(formattedTickets);
+
+    // Fetch tickets the user purchased from transactions table
+    const { data: transactionsData } = await supabase
+      .from("transactions")
+      .select(
+        `
+          ticket_id,
+          unit_price,
+          quantity,
+          tickets (
+            id,
+            current_price,
+            quantity_available,
+            event_id,
+            status,
+            events:events (
+              name,
+              datetime,
+              image_url
+            )
+          )
+        `
+      )
+      .eq("buyer_id", userId);
+
+    const formattedPurchased: Ticket[] = (transactionsData ?? [])
+      .map((tr: any) => {
+        const t = tr.tickets;
+        if (!t) return null;
         const event = Array.isArray(t.events) ? t.events[0] : t.events;
         return {
           id: t.id,
@@ -110,8 +166,8 @@ export default function ProfileScreen() {
           date: event?.datetime
             ? new Date(event.datetime).toLocaleDateString("en-GB")
             : "TBD",
-          price: t.current_price,
-          quantity: t.quantity_available,
+          price: tr.unit_price, // מחיר מהטרנזקציה!
+          quantity: tr.quantity, // כמות מהטרנזקציה!
           imageUrl:
             typeof event?.image_url === "string" &&
             /^https?:\/\//i.test(event.image_url)
@@ -119,13 +175,11 @@ export default function ProfileScreen() {
               : undefined,
           status: t.status,
         };
-      });
+      })
+      .filter(Boolean) as Ticket[];
 
-      setTickets(formattedTickets);
-      setLoading(false);
-    } finally {
-      setLoading(false);
-    }
+    setPurchasedTickets(formattedPurchased);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -146,6 +200,9 @@ export default function ProfileScreen() {
   const visibleTickets = tickets.filter(
     (ticket) => ticket.status === "active" || ticket.status === "sold"
   );
+
+  // הצג את כל הכרטיסים שנרכשו (לא מסנן סטטוס)
+  const visiblePurchasedTickets = purchasedTickets.filter(Boolean);
 
   if (loading) {
     return (
@@ -219,6 +276,33 @@ export default function ProfileScreen() {
           setModalVisible(false);
           fetchProfileAndTickets();
         }}
+      />
+
+      {/* הצגת כרטיסים שנרכשו */}
+      <Text style={[styles.title, { marginTop: 32 }]}>Tickets I Purchased</Text>
+      <View style={styles.ticketsList}>
+        {visiblePurchasedTickets.length === 0 ? (
+          <View style={{ alignItems: "center" }}>
+            <Text>No purchased tickets</Text>
+          </View>
+        ) : (
+          visiblePurchasedTickets.map((ticket, index) => (
+            <TicketCard
+              key={ticket.id ?? index}
+              {...ticket}
+              onPress={() => {
+                setSelectedPurchasedTicket(ticket);
+                setPurchasedModalVisible(true);
+              }}
+            />
+          ))
+        )}
+      </View>
+
+      <TicketModal
+        visible={purchasedModalVisible}
+        onClose={() => setPurchasedModalVisible(false)}
+        ticket={selectedPurchasedTicket}
       />
     </ScrollView>
   );

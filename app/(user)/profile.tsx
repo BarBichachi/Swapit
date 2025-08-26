@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 const styles = StyleSheet.create({
   centerTop: {
@@ -52,7 +52,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     columnGap: 12,
   },
+  updateButton: {
+    marginTop: 18,
+    backgroundColor: "#4FC3F7",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  updateButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
+    textAlign: "center",
+  },
 });
+
+const formatPhone = (phone: string) => {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 4) {
+    return digits.slice(0, 3) + "-" + digits.slice(3);
+  }
+  return digits;
+};
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
@@ -204,6 +226,10 @@ export default function ProfileScreen() {
   // הצג את כל הכרטיסים שנרכשו (לא מסנן סטטוס)
   const visiblePurchasedTickets = purchasedTickets.filter(Boolean);
 
+  const handleUpdateDetails = () => {
+    router.push("/(auth)/updateDetails");
+  };
+
   if (loading) {
     return (
       <View style={styles.centerTop}>
@@ -233,11 +259,21 @@ export default function ProfileScreen() {
           {profile.first_name} {profile.last_name}
         </Text>
         <Text>Email: {profile.email}</Text>
-        <Text>Phone: {profile.phone}</Text>
+        <Text>Phone: {formatPhone(profile.phone)}</Text>
         <Text>Balance: {profile.balance.toLocaleString()} coins</Text>
         <Text>City: {profile.city}</Text>
         <Text>Birth Year: {profile.birth_year}</Text>
         <Text>Gender: {profile.gender}</Text>
+
+        {/* כפתור עדכון פרטים אישיים */}
+        <TouchableOpacity
+          style={styles.updateButton}
+          onPress={handleUpdateDetails}
+        >
+          <Text style={styles.updateButtonText}>
+            Update Personal Details
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <Text style={[styles.title, { marginTop: 24 }]}>Tickets I'm Selling</Text>

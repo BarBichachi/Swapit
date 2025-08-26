@@ -173,6 +173,10 @@ function AppDrawer() {
         name="(tickets)/add-ticket"
         options={{ drawerItemStyle: { display: "none" } }}
       />
+      <Drawer.Screen
+        name="(auth)/updateDetails"
+        options={{ drawerItemStyle: { display: "none" } }}
+      />
     </Drawer>
   );
 }

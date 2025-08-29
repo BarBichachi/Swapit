@@ -178,6 +178,57 @@ form {
   border-radius: 8px;
 }
 
+/* ----- Add Ticket: section cards, rows, unit blocks, actions, errors ----- */
+
+.card {
+  padding: 16px;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: #fff;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.unit-card {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px dashed #ccc;
+  border-radius: 10px;
+  background: #fafafa;
+}
+
+.unit-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.actions {
+  margin-top: 16px;
+}
+
+.error {
+  margin-top: 8px;
+  color: #b00020;
+}
+
+/* Optional container for the whole page */
+.add-ticket {
+  max-width: 860px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+.form-label--center {
+  text-align: center;
+}
+
 /* Responsive */
 @media (max-width: 860px) {
   .toolbar {
@@ -191,5 +242,11 @@ form {
   }
   .toolbar__controls {
     flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: 1fr;
   }
 }

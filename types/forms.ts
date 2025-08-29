@@ -23,6 +23,5 @@ export type UnitForm = {
   row?: string;
   seat_number?: string;
   original_price: string; // keep as string in form, cast to number on submit
-  current_price: string;
   file?: File | null; // PDF per unit
 };

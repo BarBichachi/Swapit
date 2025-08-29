@@ -55,7 +55,6 @@ export default function AddTicketPage() {
       row: "",
       seat_number: "",
       original_price: "",
-      current_price: "",
       file: undefined,
     },
   ]);
@@ -99,7 +98,6 @@ export default function AddTicketPage() {
             row: "",
             seat_number: "",
             original_price: "",
-            current_price: "",
             file: undefined,
           });
         }
@@ -149,6 +147,10 @@ export default function AddTicketPage() {
       msg ||= "Event: date & time are required.";
       markEmpty("event_datetime");
     }
+    if (!eventForm.imageFile) {
+      msg ||= "Event: image is required.";
+      markEmpty("event_image");
+    }
 
     // Units
     const seenSeats = new Set<string>();
@@ -183,10 +185,6 @@ export default function AddTicketPage() {
       if (!u.original_price || isNaN(Number(u.original_price))) {
         msg ||= `Ticket #${idx}: original price must be a number.`;
         markEmpty(`unit_${i}_op`);
-      }
-      if (!u.current_price || isNaN(Number(u.current_price))) {
-        msg ||= `Ticket #${idx}: current price must be a number.`;
-        markEmpty(`unit_${i}_cp`);
       }
       if (!u.file) {
         msg ||= `Ticket #${idx}: please attach the ticket PDF.`;
@@ -236,7 +234,7 @@ export default function AddTicketPage() {
             venue: eventForm.venue,
             city: eventForm.city,
             datetime: new Date(eventForm.datetime).toISOString(),
-            status: "pending",
+            status: "active",
             category_id: categoryId,
             created_by: uid,
           },
@@ -246,7 +244,7 @@ export default function AddTicketPage() {
       if (evtErr) throw evtErr;
       const eventId = evt!.id as string;
 
-      // 3) Optional: event image upload to 'event-images' + patch image_url
+      // 3) Event image upload to 'event-images' + patch image_url
       if (eventForm.imageFile) {
         const imgExt = (
           eventForm.imageFile.name.split(".").pop() || "jpg"
@@ -310,7 +308,6 @@ export default function AddTicketPage() {
           seat_number: u.is_seated ? u.seat_number : null,
           ticket_pdf_url,
           original_price: Number(u.original_price),
-          current_price: Number(u.current_price),
           status: "active",
         });
       }
@@ -417,10 +414,15 @@ export default function AddTicketPage() {
             <input
               type="file"
               accept="image/*"
-              className="form-input"
+              className={
+                emptyFields.has("event_image")
+                  ? "form-input-error"
+                  : "form-input"
+              }
               onChange={(e) =>
                 setEventForm({ ...eventForm, imageFile: e.target.files?.[0] })
               }
+              required
             />
           </div>
 
@@ -525,7 +527,7 @@ export default function AddTicketPage() {
               )}
 
               <div className="form-group">
-                <label className="form-label">Original Price</label>
+                <label className="form-label">Price</label>
                 <input
                   inputMode="decimal"
                   className={
@@ -536,22 +538,6 @@ export default function AddTicketPage() {
                   value={u.original_price}
                   onChange={(e) =>
                     updateUnit(idx, { original_price: e.target.value })
-                  }
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Current Price</label>
-                <input
-                  inputMode="decimal"
-                  className={
-                    emptyFields.has(`unit_${idx}_cp`)
-                      ? "form-input-error"
-                      : "form-input"
-                  }
-                  value={u.current_price}
-                  onChange={(e) =>
-                    updateUnit(idx, { current_price: e.target.value })
                   }
                 />
               </div>

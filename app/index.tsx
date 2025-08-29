@@ -32,7 +32,7 @@ export default function HomePage() {
   const filterAnchorRef = useRef<any>(null);
   const { refetchProfile } = useProfile();
   const { tickets, refetch } = useTickets();
-  const { userName, loading: authLoading } = useAuth();
+  const { userName, loading: authLoading, hydrated, profile } = useAuth();
   const filteredTickets = useFilteredTickets({
     tickets,
     searchTerm,
@@ -56,11 +56,16 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.open, params.ticketId]);
 
+  // Ensures pendingTicketId is cleared when navigating away from the page.
+  useEffect(() => {
+    return () => setPendingTicketId(null);
+  }, []);
+
   // when tickets are loaded AND auth is settled, open and then clean URL
   useEffect(() => {
     if (!pendingTicketId) return;
     if (authLoading) return;
-    if (!userName) return;
+    if (!hydrated) return;
     if (!tickets?.length) return;
 
     const t = tickets.find((x) => String(x.id) === pendingTicketId);
@@ -88,7 +93,11 @@ export default function HomePage() {
         }}
       >
         {/* Welcome Section */}
-        <WelcomeHeader userName={authLoading ? "…" : userName} />
+        <WelcomeHeader
+          userName={
+            !hydrated || authLoading || !!profile === false ? "Guest" : userName
+          }
+        />
 
         {/* Ticket Filters */}
         <TicketFilters

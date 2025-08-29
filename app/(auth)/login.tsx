@@ -2,7 +2,6 @@
 
 import Input from "@/components/global/Input";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { supabase } from "@/lib/supabase";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -20,7 +19,8 @@ export default function LoginPage() {
   }>();
   const [redirecting, setRedirecting] = useState(false);
   const hasNavigatedRef = useRef(false);
-  const { user } = useAuthContext();
+  const { user, hydrated, signInWithPassword, refreshProfile } =
+    useAuthContext();
 
   // Helper to sanitize + compute destination once
   const computeDest = () => {
@@ -52,27 +52,26 @@ export default function LoginPage() {
 
   // Redirects whenever we're logged in
   useEffect(() => {
-    if (!user || redirecting || hasNavigatedRef.current) return;
+    if (!hydrated) return; // wait until auth is initialized
+    if (!user) return; // wait until we actually have a user
+    if (redirecting || hasNavigatedRef.current) return;
 
     const { dest, open, ticketId } = destInfo;
-
-    // --- SAFETY GUARDS: do not "redirect" to the same page or an auth route ---
     const isAuthRoute = dest.startsWith("/(auth)");
     const isSameRoute = dest === pathname;
-
-    if (isAuthRoute || isSameRoute) {
-      // we're already here or it's an auth screen — don't enter the "blank" state
-      return;
-    }
 
     hasNavigatedRef.current = true;
     setRedirecting(true);
 
-    router.replace({
-      pathname: dest,
-      params: open && ticketId ? { open, ticketId } : {},
-    } as never);
-  }, [user, redirecting, destInfo, router, pathname]);
+    router.replace(
+      isAuthRoute || isSameRoute
+        ? "/"
+        : ({
+            pathname: dest,
+            params: open && ticketId ? { open, ticketId } : {},
+          } as never)
+    );
+  }, [hydrated, user, redirecting, destInfo, router, pathname]);
 
   // Backstop: if redirecting stays true but no navigation happens, clear it
   useEffect(() => {
@@ -125,10 +124,7 @@ export default function LoginPage() {
       }
 
       // sign in
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: loginError } = await signInWithPassword(email, password);
 
       if (loginError) {
         setError(loginError.message);
@@ -145,11 +141,8 @@ export default function LoginPage() {
         return;
       }
 
-      // post-signin verification fallback (rare event-miss)
-      const { data } = await supabase.auth.getSession();
-      if (!data.session?.user) {
-        await new Promise((r) => setTimeout(r, 50));
-      }
+      // Trigger a background profile fetch (in case the row exists / RLS allows)
+      refreshProfile().catch(() => {});
 
       // success: clear any previous highlights
       setEmptyFields(new Set());
@@ -160,38 +153,10 @@ export default function LoginPage() {
     }
   };
 
-  // TODO: TO BE USED IN THE FUTURE
-  const handleResetPassword = async () => {
-    if (!form.email.trim()) {
-      setError("Enter your email to reset password.");
-      setEmptyFields((prev) => new Set(prev).add("email"));
-      return;
-    }
-
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      form.email,
-      {
-        redirectTo: "OUR RESET PASSWORD URL", // Replace with real URL
-      }
-    );
-
-    if (resetError) {
-      setError(resetError.message);
-    } else {
-      alert("Password reset email sent!");
-    }
-  };
-
-  if (user) {
+  if (!hydrated || redirecting) {
     return (
       <div className="form-container">
-        <h1 className="form-title" style={{ marginBottom: "0.5rem" }}>
-          You are already logged in!
-        </h1>
-        {/* Optional: a link to go back */}
-        <button className="form-button" onClick={() => router.replace("/")}>
-          Go Home
-        </button>
+        <h1 className="form-title">Loading…</h1>
       </div>
     );
   }

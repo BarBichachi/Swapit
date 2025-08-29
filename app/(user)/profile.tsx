@@ -1,12 +1,19 @@
 import TicketCard from "@/components/tickets/TicketCard";
 import TicketModal from "@/components/tickets/TicketModal";
 import TicketUpdateModal from "@/components/tickets/TicketUpdateModal";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { usePurchasedTickets } from "@/hooks/usePurchasedTickets";
 import { useTickets } from "@/hooks/useTickets";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const styles = StyleSheet.create({
   centerTop: {
@@ -78,10 +85,14 @@ const formatPhone = (phone: string) => {
 };
 
 export default function ProfileScreen() {
-  const [profile, setProfile] = useState<any>(null);
-  const [selectedSellingTicket, setSelectedSellingTicket] = useState<any | null>(null);
+  const { user, profile, hydrated } = useAuthContext();
+  const [selectedSellingTicket, setSelectedSellingTicket] = useState<
+    any | null
+  >(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<any | null>(null);
+  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<
+    any | null
+  >(null);
   const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
 
   const router = useRouter();
@@ -90,32 +101,14 @@ export default function ProfileScreen() {
   const { tickets, loading, refetch } = useTickets();
 
   // משיכת הכרטיסים שרכשתי (hook חדש)
-  const { tickets: purchasedTickets, loading: loadingPurchased } = usePurchasedTickets(profile?.id ?? null);
-
-  useEffect(() => {
-    // משיכת פרטי משתמש
-    const fetchProfile = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) {
-        setProfile(null);
-        return;
-      }
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-      setProfile(profileData);
-    };
-    fetchProfile();
-  }, []);
+  const { tickets: purchasedTickets, loading: loadingPurchased } =
+    usePurchasedTickets(profile?.id ?? null);
 
   const handleUpdateDetails = () => {
-    router.push("/(user)/update-details");
+    router.push("/(user)/updatedetails");
   };
 
-  if (loading || loadingPurchased) {
+  if (!hydrated || loading || loadingPurchased) {
     return (
       <View style={styles.centerTop}>
         <Text>Loading data...</Text>
@@ -123,13 +116,13 @@ export default function ProfileScreen() {
     );
   }
 
-  if (!profile) {
+  if (!user || !profile) {
     return (
       <View style={styles.centerTop}>
         <Text>Not logged in</Text>
         <Pressable
           style={styles.loginButton}
-          onPress={() => router.push("/login")}
+          onPress={() => router.push("/(auth)/login")}
         >
           <Text style={{ color: "#fff" }}>Go to Login</Text>
         </Pressable>
@@ -138,9 +131,15 @@ export default function ProfileScreen() {
   }
 
   // כרטיסים שאני מוכר (המשתמש הנוכחי הוא הבעלים של הכרטיס ואין לו טרנזקציה)
-  const mySellingTickets = tickets.filter(
-    (t) => t.sellerId === profile.id
-  );
+  const mySellingTickets = tickets.filter((t) => t.sellerId === user.id);
+
+  if (!hydrated || loading || loadingPurchased || !profile) {
+    return (
+      <View style={styles.centerTop}>
+        <Text>Loading data...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.centerTop}>
@@ -148,20 +147,18 @@ export default function ProfileScreen() {
         <Text style={styles.title}>
           {profile.first_name} {profile.last_name}
         </Text>
-        <Text>Email: {profile.email}</Text>
-        <Text>Phone: {formatPhone(profile.phone)}</Text>
-        <Text>Balance: {profile.balance.toLocaleString()} coins</Text>
-        <Text>City: {profile.city}</Text>
-        <Text>Birth Year: {profile.birth_year}</Text>
-        <Text>Gender: {profile.gender}</Text>
+        <Text>Email: {profile.email ?? "-"}</Text>
+        <Text>Phone: {formatPhone(profile.phone ?? "")}</Text>
+        <Text>Balance: {(profile.balance ?? 0).toLocaleString()} coins</Text>
+        <Text>City: {profile.city ?? "-"}</Text>
+        <Text>Birth Year: {profile.birth_year ?? "-"}</Text>
+        <Text>Gender: {profile.gender ?? "-"}</Text>
 
         <TouchableOpacity
           style={styles.updateButton}
           onPress={handleUpdateDetails}
         >
-          <Text style={styles.updateButtonText}>
-            Update Personal Details
-          </Text>
+          <Text style={styles.updateButtonText}>Update Personal Details</Text>
         </TouchableOpacity>
       </View>
 

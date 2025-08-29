@@ -52,22 +52,24 @@ export default function RootLayout() {
 
 function HeaderLeftButton() {
   const router = useRouter();
-  const { userName, loading, user } = useAuthContext();
+  const { userName, loading, user, hydrated, profile } = useAuthContext();
   const { balance, loading: profileLoading } = useProfile();
 
   return (
     <TouchableOpacity
       onPress={() => router.push(user ? "/(user)/profile" : "/(auth)/login")}
       style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
-      disabled={loading || profileLoading}
+      disabled={!hydrated || loading || (user && !profile) || profileLoading}
     >
-      {/* Profile Icon + Name */}
       <Ionicons name="person-circle-outline" size={28} color="black" />
       <Text style={{ marginLeft: 6, fontSize: 16 }}>
-        {loading ? "…" : userName}
+        {!hydrated || loading || (user && !profile)
+          ? "…"
+          : user
+          ? userName || "User"
+          : "Guest"}
       </Text>
 
-      {/* Balance Section */}
       {user && balance !== null && (
         <View
           style={{ flexDirection: "row", alignItems: "center", marginLeft: 24 }}
@@ -84,7 +86,7 @@ function HeaderLeftButton() {
 
 function AppDrawer() {
   const router = useRouter();
-  const { user, loading } = useAuthContext();
+  const { user, hydrated } = useAuthContext();
   const isLoggedIn = !!user;
 
   return (
@@ -136,7 +138,7 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="person-add-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isLoggedIn || loading ? { display: "none" } : {},
+          drawerItemStyle: isLoggedIn || !hydrated ? { display: "none" } : {},
         }}
       />
       <Drawer.Screen
@@ -147,7 +149,7 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="log-in-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isLoggedIn || loading ? { display: "none" } : {},
+          drawerItemStyle: isLoggedIn || !hydrated ? { display: "none" } : {},
         }}
       />
 
@@ -160,7 +162,7 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="log-out-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isLoggedIn || loading ? { display: "none" } : {},
+          drawerItemStyle: !isLoggedIn || !hydrated ? { display: "none" } : {},
         }}
       />
 
@@ -174,7 +176,7 @@ function AppDrawer() {
         options={{ drawerItemStyle: { display: "none" } }}
       />
       <Drawer.Screen
-        name="(auth)/updateDetails"
+        name="(user)/updatedetails"
         options={{ drawerItemStyle: { display: "none" } }}
       />
     </Drawer>

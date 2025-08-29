@@ -1,7 +1,14 @@
-import { supabase } from "@/lib/supabase";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 const styles = StyleSheet.create({
   container: {
@@ -67,8 +74,8 @@ function validateName(name: string) {
 export default function UpdateDetailsScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
-
+  const { user, profile, hydrated, updateProfile, refreshProfile } =
+    useAuthContext();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -77,70 +84,71 @@ export default function UpdateDetailsScreen() {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    // טען פרטי משתמש קיימים
-    const fetchProfile = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const userId = sessionData?.session?.user?.id;
-      if (!userId) return;
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-
-      if (profileData) {
-        setProfile(profileData);
-        setFirstName(profileData.first_name ?? "");
-        setLastName(profileData.last_name ?? "");
-        setEmail(profileData.email ?? "");
-        setPhone(profileData.phone ?? "");
-      }
-    };
-    fetchProfile();
-  }, []);
+    if (!profile) return;
+    setFirstName(profile.first_name ?? "");
+    setLastName(profile.last_name ?? "");
+    setEmail(profile.email ?? "");
+    setPhone(profile.phone ?? "");
+  }, [profile]);
 
   const handleSubmit = async () => {
     let newErrors: { [key: string]: string } = {};
-
-    if (!validateName(firstName)) newErrors.firstName = "Enter a valid first name";
+    if (!validateName(firstName))
+      newErrors.firstName = "Enter a valid first name";
     if (!validateName(lastName)) newErrors.lastName = "Enter a valid last name";
     if (!validateEmail(email)) newErrors.email = "Enter a valid email";
-    if (!validatePhone(phone)) newErrors.phone = "Enter a valid phone (format: 05XXXXXXXX)";
-
+    if (!validatePhone(phone))
+      newErrors.phone = "Enter a valid phone (format: 05XXXXXXXX)";
     setErrors(newErrors);
-
     if (Object.keys(newErrors).length > 0) return;
 
-    setLoading(true);
-
-    const { data: sessionData } = await supabase.auth.getSession();
-    const userId = sessionData?.session?.user?.id;
-    if (!userId) {
-      setLoading(false);
+    if (!user?.id) {
       Alert.alert("Error", "User not logged in");
       return;
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        phone: phone.replace(/\D/g, ""),
-      })
-      .eq("id", userId);
-
+    setLoading(true);
+    const { error } = await updateProfile({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      phone: phone.replace(/\D/g, ""),
+    });
     setLoading(false);
 
     if (error) {
       Alert.alert("Error", error.message);
     } else {
+      // ensure any subscribers refetch if needed
+      await refreshProfile();
       Alert.alert("Success", "Details updated!");
       router.back();
     }
   };
+
+  if (!hydrated) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading…</Text>
+      </View>
+    );
+  }
+
+  if (!user) {
+    return (
+      <View style={styles.container}>
+        <Text>Please log in first</Text>
+      </View>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <View style={styles.container}>
+        <Text>Loading profile…</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -156,7 +164,9 @@ export default function UpdateDetailsScreen() {
           onChangeText={setFirstName}
           placeholder="First Name"
         />
-        {errors.firstName && <Text style={styles.error}>{errors.firstName}</Text>}
+        {errors.firstName && (
+          <Text style={styles.error}>{errors.firstName}</Text>
+        )}
 
         <Text style={styles.label}>Last Name</Text>
         <TextInput
@@ -192,7 +202,7 @@ export default function UpdateDetailsScreen() {
         <TouchableOpacity
           style={styles.button}
           onPress={handleSubmit}
-          disabled={loading}
+          disabled={loading || !profile || !user}
         >
           <Text style={styles.buttonText}>
             {loading ? "Updating..." : "Update"}

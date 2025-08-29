@@ -23,11 +23,11 @@ export default function TicketUpdateModal({
     if (visible && ticket?.price != null) {
       setNewPrice(ticket.price);
 
-      // שליפת original_price מהדאטהבייס
+      // שליפת original_price מהטבלה ticket_units
       const fetchOriginalPrice = async () => {
         if (ticket?.id) {
           const { data } = await supabase
-            .from("tickets")
+            .from("ticket_units")
             .select("original_price")
             .eq("id", ticket.id)
             .single();
@@ -40,9 +40,10 @@ export default function TicketUpdateModal({
 
   if (!ticket) return null;
 
+  // עדכון מחיר בטבלת ticket_units
   const handleUpdatePrice = async () => {
     const { error } = await supabase
-      .from("tickets")
+      .from("ticket_units")
       .update({ current_price: newPrice })
       .eq("id", ticket.id);
 
@@ -55,9 +56,10 @@ export default function TicketUpdateModal({
     }
   };
 
+  // הסרת כרטיס מהמחירה (עדכון סטטוס ל-removed)
   const handleRemoveFromSale = async () => {
     const { error } = await supabase
-      .from("tickets")
+      .from("ticket_units")
       .update({ status: "removed" })
       .eq("id", ticket.id);
 

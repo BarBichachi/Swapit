@@ -24,23 +24,20 @@ export const useTickets = () => {
 
   const fetchTickets = async () => {
     const { data, error } = await supabase
-      .from("tickets")
+      .from("ticket_units")
       .select(
         `
-        id,
-        user_id,
-        current_price,
-        quantity_available,
-        event_id,
-        events:events (
-          name,
-          datetime,
-          image_url
-        )
-      `
+    event_id,
+    owner_user_id,
+    current_price,
+    events:events (
+      name,
+      datetime,
+      image_url
+    )
+  `
       )
-      .eq("status", "active")
-      .gt("quantity_available", 0);
+      .eq("status", "active");
 
     if (error) {
       console.error("[useTickets] fetch error:", error);
@@ -49,26 +46,90 @@ export const useTickets = () => {
       return;
     }
 
-    const rows = (data ?? []) as TicketRow[];
+    type UnitRow = {
+      event_id: string;
+      owner_user_id: string;
+      current_price: number | null;
+      events:
+        | {
+            name?: string | null;
+            datetime?: string | null;
+            image_url?: string | null;
+          }
+        | Array<{
+            name?: string | null;
+            datetime?: string | null;
+            image_url?: string | null;
+          }>;
+    };
 
-    const formatted = rows.map((t) => {
-      const event = Array.isArray(t.events) ? t.events[0] : t.events;
-      return {
-        id: t.id,
-        sellerId: (t as any).user_id ?? undefined,
-        eventTitle: event?.name ?? "Unknown",
-        date: event?.datetime
-          ? new Date(event.datetime).toLocaleDateString("en-GB")
+    const rows = (data ?? []) as UnitRow[];
+
+    // Group units by (event_id + owner_user_id)
+    const grouped = new Map<
+      string,
+      {
+        event_id: string;
+        owner_user_id: string;
+        minPrice: number;
+        count: number;
+        ev: {
+          name?: string | null;
+          datetime?: string | null;
+          image_url?: string | null;
+        } | null;
+      }
+    >();
+
+    for (const u of rows) {
+      const ev = Array.isArray(u.events) ? u.events[0] : u.events;
+      const key = `${u.event_id}:${u.owner_user_id}`;
+      const price = Number(u.current_price ?? 0);
+
+      if (!grouped.has(key)) {
+        grouped.set(key, {
+          event_id: u.event_id,
+          owner_user_id: u.owner_user_id,
+          minPrice: price,
+          count: 1,
+          ev: ev ?? null,
+        });
+      } else {
+        const g = grouped.get(key)!;
+        g.minPrice = Math.min(g.minPrice, price);
+        g.count += 1;
+      }
+    }
+
+    const formatted: Ticket[] = Array.from(grouped.values()).map(
+      (g): Ticket => ({
+        id: `${g.event_id}:${g.owner_user_id}`,
+        sellerId: g.owner_user_id,
+        eventTitle: g.ev?.name ?? "Unknown",
+        date: g.ev?.datetime
+          ? new Date(g.ev.datetime).toLocaleDateString("en-GB")
           : "TBD",
-        price: Number(t.current_price ?? 0),
-        quantity: Number(t.quantity_available ?? 0),
+        price: g.minPrice,
+        quantity: g.count,
         imageUrl:
-          typeof event?.image_url === "string" &&
-          /^https?:\/\//i.test(event.image_url)
-            ? event.image_url
+          typeof g.ev?.image_url === "string" &&
+          /^https?:\/\//i.test(g.ev.image_url!)
+            ? (g.ev!.image_url as string)
             : undefined,
-        status: (t as any).status as any,
-      };
+        status: "active" as const, // <- key change
+      })
+    );
+
+    formatted.sort((a, b) => {
+      const da =
+        a.date === "TBD"
+          ? Infinity
+          : new Date(a.date.split("/").reverse().join("-")).getTime();
+      const db =
+        b.date === "TBD"
+          ? Infinity
+          : new Date(b.date.split("/").reverse().join("-")).getTime();
+      return da - db;
     });
 
     setTickets(formatted);

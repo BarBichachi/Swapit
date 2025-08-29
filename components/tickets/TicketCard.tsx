@@ -108,7 +108,7 @@ export default function TicketCard({
         <View style={{ paddingBottom: 8, alignItems: "center" }}>
           <Text style={{ fontWeight: "bold", fontSize: 18 }}>{eventTitle}</Text>
           <Text style={{ fontSize: 14 }}>{date}</Text>
-          <Text style={{ fontSize: 14 }}>{price}₪</Text>
+          <Text style={{ fontSize: 14 }}>Starting from {price}₪</Text>
           <Text style={{ fontSize: 14, color: "crimson" }}>
             {quantity} tickets
           </Text>

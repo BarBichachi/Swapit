@@ -57,63 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const tabId = useMemo(() => Math.random().toString(36).slice(2), []);
+
   const mountedRef = useRef(true);
   const reloadingRef = useRef(false);
-  const pendingReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
-  const RELOAD_KEY = "swapit:authReload"; // localStorage
-  const RELOAD_TTL_MS = 1_000;
-
-  const armFallbackReload = () => {
-    // If the auth event doesn't arrive (rare), reload after 1s
-    if (pendingReloadTimerRef.current)
-      clearTimeout(pendingReloadTimerRef.current);
-    pendingReloadTimerRef.current = setTimeout(() => {
-      if (!reloadingRef.current) hardReload();
-    }, 1000);
-  };
-
-  const cancelFallbackReload = () => {
-    if (pendingReloadTimerRef.current) {
-      clearTimeout(pendingReloadTimerRef.current);
-      pendingReloadTimerRef.current = null;
-    }
-  };
-
-  const markThisTabAsReloadInitiator = () => {
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(
-          RELOAD_KEY,
-          JSON.stringify({ tabId, ts: Date.now() })
-        );
-      }
-    } catch {}
-  };
-
-  const readReloadMarker = () => {
-    try {
-      const raw =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(RELOAD_KEY)
-          : null;
-      if (!raw) return null;
-      const obj = JSON.parse(raw) as { tabId: string; ts: number };
-      return obj;
-    } catch {
-      return null;
-    }
-  };
-
-  const clearReloadMarker = () => {
-    try {
-      if (typeof window !== "undefined")
-        window.localStorage.removeItem(RELOAD_KEY);
-    } catch {}
-  };
-
   const hardReload = () => {
     if (typeof window !== "undefined" && !reloadingRef.current) {
       reloadingRef.current = true;
@@ -158,25 +104,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthUser(nextUser);
 
         if (evt === "SIGNED_IN" || evt === "SIGNED_OUT") {
-          const marker = readReloadMarker();
-          const isMine = !!marker && marker.tabId === tabId;
-          const isStale = !!marker && Date.now() - marker.ts > RELOAD_TTL_MS;
-
-          if (isMine) {
-            clearReloadMarker();
-            cancelFallbackReload();
-            hardReload(); // exactly once, in the initiating tab
-            return;
-          }
-          if (isStale) clearReloadMarker();
-
-          // Other tabs: no reload; just hydrate/clear state
-          if (nextUser) await fetchProfile(nextUser.id);
-          else setProfile(null);
+          hardReload(); // ensure full rehydrate across app
           return;
         }
 
-        // Other events
         if (nextUser) await fetchProfile(nextUser.id);
         else setProfile(null);
       }
@@ -185,7 +116,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
-      cancelFallbackReload();
     };
   }, []);
 
@@ -216,16 +146,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithPassword = async (email: string, password: string) => {
-    markThisTabAsReloadInitiator();
-    armFallbackReload(); // optional safety
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (error) {
-      clearReloadMarker();
-      cancelFallbackReload();
-    }
+    if (!error) hardReload();
     return { error: error ?? undefined };
   };
 
@@ -248,13 +173,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setLoading(true);
-    markThisTabAsReloadInitiator();
-    armFallbackReload(); // optional safety
     await supabase.auth.signOut();
     setAuthUser(null);
     setProfile(null);
     setLoading(false);
-    // no hardReload() here
+    hardReload();
   };
 
   // --- unified view exposed to the app ---

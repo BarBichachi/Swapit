@@ -69,8 +69,8 @@ export default function TicketFilters({
 
   const icon = isCompact ? 16 : 18;
   const chevron = isCompact ? 14 : 16;
-  const labelFont = isCompact ? 14 : 16;
-  const valueFont = isCompact ? 13 : 15;
+  const labelFont = isCompact ? 12 : 16;
+  const valueFont = isCompact ? 10 : 15;
 
   return (
     <div className="toolbar">
@@ -111,7 +111,7 @@ export default function TicketFilters({
             <Ionicons
               name="funnel-outline"
               size={icon}
-              style={{ marginRight: 6 }}
+              style={{ marginRight: 4 }}
             />
             <Text
               style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}
@@ -148,7 +148,7 @@ export default function TicketFilters({
             <Ionicons
               name="options-outline"
               size={icon}
-              style={{ marginRight: 6 }}
+              style={{ marginRight: 4 }}
             />
             <Text
               style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}

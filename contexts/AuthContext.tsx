@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
+  const reloadOnNextAuthChangeRef = useRef(false);
   const mountedRef = useRef(true);
   const reloadingRef = useRef(false);
   const hardReload = () => {
@@ -103,13 +103,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const nextUser = session?.user ?? null;
         setAuthUser(nextUser);
 
-        if (evt === "SIGNED_IN" || evt === "SIGNED_OUT") {
-          hardReload(); // ensure full rehydrate across app
-          return;
-        }
+        switch (evt) {
+          case "SIGNED_IN":
+          case "SIGNED_OUT": {
+            // Only reload if this tab triggered it
+            if (reloadOnNextAuthChangeRef.current) {
+              reloadOnNextAuthChangeRef.current = false;
+              hardReload();
+              return;
+            }
+            // Cross-tab or passive event: just update profile state
+            if (nextUser) await fetchProfile(nextUser.id);
+            else setProfile(null);
+            return;
+          }
 
-        if (nextUser) await fetchProfile(nextUser.id);
-        else setProfile(null);
+          case "TOKEN_REFRESHED":
+          case "USER_UPDATED":
+          case "PASSWORD_RECOVERY":
+          case "INITIAL_SESSION":
+          default: {
+            // Never reload on these; just hydrate profile if signed in
+            if (nextUser) await fetchProfile(nextUser.id);
+            else setProfile(null);
+            return;
+          }
+        }
       }
     );
 
@@ -146,11 +165,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithPassword = async (email: string, password: string) => {
+    reloadOnNextAuthChangeRef.current = true; // this tab initiated
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (!error) hardReload();
+    if (error) reloadOnNextAuthChangeRef.current = false; // cancel if failed
     return { error: error ?? undefined };
   };
 
@@ -173,11 +193,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setLoading(true);
+    reloadOnNextAuthChangeRef.current = true;
     await supabase.auth.signOut();
-    setAuthUser(null);
-    setProfile(null);
     setLoading(false);
-    hardReload();
   };
 
   // --- unified view exposed to the app ---

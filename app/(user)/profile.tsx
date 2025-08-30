@@ -88,14 +88,12 @@ export default function ProfileScreen() {
   const { currentUser, loading } = useAuthContext();
   const router = useRouter();
 
-  const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(
-    null
-  );
+  const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<
-    any | null
-  >(null);
+  const [selectedPurchasedGroup, setSelectedPurchasedGroup] = useState<any | null>(null);
   const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
+  const [purchasedTicketIds, setPurchasedTicketIds] = useState<string[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   // משיכת הכרטיסים שאני מוכר
   const {
@@ -143,6 +141,54 @@ export default function ProfileScreen() {
   const mySellingTicketIds = selectedSellingGroup
     ? ticketIdMap.get(selectedSellingGroup.ticket_id) ?? []
     : [];
+
+  // כרטיסים שרכשתי - בניית אובייקט עם כל השדות הנדרשים ל-TicketModal/TicketCard
+  const purchasedUnits = purchasedTickets
+    .map((tx: any) => {
+      const unit = tx.ticket_unit ?? tx;
+      const event =
+        unit?.events?.[0] ??
+        unit?.event ??
+        (Array.isArray(unit?.events) ? unit.events[0] : unit?.events);
+
+      return unit
+        ? {
+            id: unit.id,
+            ticket_id: unit.ticket_id,
+            event_id: unit.event_id,
+            sellerId: unit.owner_user_id,
+            eventTitle: event?.name ?? "",
+            date: event?.datetime
+              ? new Date(event.datetime).toLocaleDateString("en-GB")
+              : "",
+            price: unit.current_price ?? 0,
+            quantity: 1,
+            imageUrl:
+              typeof event?.image_url === "string" &&
+              /^https?:\/\//i.test(event.image_url)
+                ? event.image_url
+                : undefined,
+            status: unit.status ?? "active",
+          }
+        : null;
+    })
+    .filter((unit: any) => !!unit);
+
+  // קיבוץ לפי ticket_id
+  const purchasedGroups = Object.values(
+    purchasedUnits.reduce((acc, unit) => {
+      if (!unit) return acc;
+      if (!acc[unit.ticket_id]) {
+        acc[unit.ticket_id] = {
+          ...unit,
+          quantity: 1,
+        };
+      } else {
+        acc[unit.ticket_id].quantity += 1;
+      }
+      return acc;
+    }, {} as Record<string, any>)
+  );
 
   return (
     <ScrollView contentContainerStyle={styles.centerTop}>
@@ -205,10 +251,10 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* Purchased Tickets */}
+      {/* Purchased Tickets - grouped by ticket_id */}
       <Text style={[styles.title, { marginTop: 32 }]}>Tickets I Purchased</Text>
       <View style={styles.ticketsList}>
-        {purchasedTickets.length === 0 ? (
+        {purchasedGroups.length === 0 ? (
           <View style={{ alignItems: "center" }}>
             <Text>No purchased tickets</Text>
             <Pressable
@@ -221,13 +267,17 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : (
-          purchasedTickets.map((tx, index) => (
+          purchasedGroups.map((group: any, index: number) => (
             <TicketCard
-              key={tx.id ?? index}
-              {...tx.ticket_unit}
+              key={group.ticket_id ?? index}
+              {...group}
               onPress={() => {
-                setSelectedPurchasedTicket(tx.ticket_unit);
+                // פתח מודל עם כל היחידות של הקבוצה הזו
+                const groupUnits = purchasedUnits.filter(u => u && u.ticket_id === group.ticket_id);
+                setSelectedPurchasedGroup(groupUnits[0]);
                 setPurchasedModalVisible(true);
+                setPurchasedTicketIds(groupUnits.filter((u): u is NonNullable<typeof u> => !!u).map(u => u.id));
+                setCurrentIndex(0);
               }}
             />
           ))
@@ -237,7 +287,18 @@ export default function ProfileScreen() {
       <TicketModal
         visible={purchasedModalVisible}
         onClose={() => setPurchasedModalVisible(false)}
-        tickets={selectedPurchasedTicket ? [selectedPurchasedTicket] : []}
+        tickets={
+          selectedPurchasedGroup
+            ? purchasedUnits.filter(
+                (u): u is NonNullable<typeof u> =>
+                  !!u && purchasedTicketIds.includes(u.id)
+              )
+            : []
+        }
+        ticketIds={purchasedTicketIds}
+        currentIndex={currentIndex}
+        handlePrev={() => setCurrentIndex(i => Math.max(i - 1, 0))}
+        handleNext={() => setCurrentIndex(i => Math.min(i + 1, purchasedTicketIds.length - 1))}
       />
     </ScrollView>
   );

@@ -57,9 +57,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const reloadOnNextAuthChangeRef = useRef(false);
+  const tabId = useMemo(() => Math.random().toString(36).slice(2), []);
   const mountedRef = useRef(true);
   const reloadingRef = useRef(false);
+
+  const RELOAD_KEY = "swapit:authReload"; // localStorage
+  const RELOAD_TTL_MS = 10_000;
+
+  const markThisTabAsReloadInitiator = () => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(
+          RELOAD_KEY,
+          JSON.stringify({ tabId, ts: Date.now() })
+        );
+      }
+    } catch {}
+  };
+
+  const readReloadMarker = () => {
+    try {
+      const raw =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(RELOAD_KEY)
+          : null;
+      if (!raw) return null;
+      const obj = JSON.parse(raw) as { tabId: string; ts: number };
+      return obj;
+    } catch {
+      return null;
+    }
+  };
+
+  const clearReloadMarker = () => {
+    try {
+      if (typeof window !== "undefined")
+        window.localStorage.removeItem(RELOAD_KEY);
+    } catch {}
+  };
+
   const hardReload = () => {
     if (typeof window !== "undefined" && !reloadingRef.current) {
       reloadingRef.current = true;
@@ -103,32 +139,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const nextUser = session?.user ?? null;
         setAuthUser(nextUser);
 
-        switch (evt) {
-          case "SIGNED_IN":
-          case "SIGNED_OUT": {
-            // Only reload if this tab triggered it
-            if (reloadOnNextAuthChangeRef.current) {
-              reloadOnNextAuthChangeRef.current = false;
-              hardReload();
-              return;
-            }
-            // Cross-tab or passive event: just update profile state
-            if (nextUser) await fetchProfile(nextUser.id);
-            else setProfile(null);
+        if (evt === "SIGNED_IN" || evt === "SIGNED_OUT") {
+          const marker = readReloadMarker();
+          const isMine = !!marker && marker.tabId === tabId;
+          const isStale = !!marker && Date.now() - marker.ts > RELOAD_TTL_MS;
+
+          if (isMine) {
+            // This tab initiated: clear and hard-reload (exactly once)
+            clearReloadMarker();
+            hardReload();
             return;
+          }
+          if (isStale) {
+            // Clean up any old marker so it doesn't linger forever
+            clearReloadMarker();
           }
 
-          case "TOKEN_REFRESHED":
-          case "USER_UPDATED":
-          case "PASSWORD_RECOVERY":
-          case "INITIAL_SESSION":
-          default: {
-            // Never reload on these; just hydrate profile if signed in
-            if (nextUser) await fetchProfile(nextUser.id);
-            else setProfile(null);
-            return;
-          }
+          // Another tab initiated: do NOT reload; just hydrate/clear state
+          if (nextUser) await fetchProfile(nextUser.id);
+          else setProfile(null);
+          return;
         }
+
+        if (nextUser) await fetchProfile(nextUser.id);
+        else setProfile(null);
       }
     );
 
@@ -165,12 +199,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithPassword = async (email: string, password: string) => {
-    reloadOnNextAuthChangeRef.current = true; // this tab initiated
+    markThisTabAsReloadInitiator();
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (error) reloadOnNextAuthChangeRef.current = false; // cancel if failed
+    if (!error) hardReload();
     return { error: error ?? undefined };
   };
 
@@ -193,9 +227,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     setLoading(true);
-    reloadOnNextAuthChangeRef.current = true;
+    markThisTabAsReloadInitiator();
     await supabase.auth.signOut();
+    setAuthUser(null);
+    setProfile(null);
     setLoading(false);
+    hardReload();
   };
 
   // --- unified view exposed to the app ---

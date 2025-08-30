@@ -5,47 +5,63 @@ import Slider from "@react-native-assets/slider";
 import { useEffect, useState } from "react";
 import { Pressable, Text } from "react-native";
 
+interface TicketUpdateModalProps {
+  visible: boolean;
+  onClose: () => void;
+  ticket: Ticket | null;
+  ticketIds?: string[];
+  tickets?: Ticket[];
+  onUpdated?: () => void;
+}
+
 export default function TicketUpdateModal({
   visible,
   onClose,
   ticket,
+  ticketIds = [],
+  tickets = [],
   onUpdated,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  ticket: Ticket | null;
-  onUpdated?: () => void;
-}) {
-  const [newPrice, setNewPrice] = useState(ticket?.price ?? 0);
+}: TicketUpdateModalProps) {
+  // דפדוף בין כרטיסים
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  // הכרטיס הנוכחי לפי הדפדוף
+  const currentTicketId = ticketIds[currentIndex];
+  const currentTicket = tickets.find((t) => t.id === currentTicketId);
+
+  const [newPrice, setNewPrice] = useState(currentTicket?.price ?? 0);
   const [originalPrice, setOriginalPrice] = useState<number | null>(null);
 
   useEffect(() => {
-    if (visible && ticket?.price != null) {
-      setNewPrice(ticket.price);
+    if (visible && ticket && ticketIds.length) {
+      const idx = ticketIds.findIndex((id) => id === ticket.id);
+      setCurrentIndex(idx >= 0 ? idx : 0);
+    }
+  }, [visible, ticket?.id, ticketIds]);
 
-      // שליפת original_price מהטבלה ticket_units
+  // עדכון הסליידר והמחיר בכל מעבר כרטיס
+  useEffect(() => {
+    if (visible && currentTicket) {
+      setNewPrice(currentTicket.price);
+
       const fetchOriginalPrice = async () => {
-        if (ticket?.id) {
-          const { data } = await supabase
-            .from("ticket_units")
-            .select("original_price")
-            .eq("id", ticket.id)
-            .single();
-          setOriginalPrice(data?.original_price ?? ticket.price);
-        }
+        const { data } = await supabase
+          .from("ticket_units")
+          .select("original_price")
+          .eq("id", currentTicket.id)
+          .single();
+        setOriginalPrice(data?.original_price ?? currentTicket.price);
       };
       fetchOriginalPrice();
     }
-  }, [visible, ticket?.price, ticket?.id]);
-
-  if (!ticket) return null;
+  }, [visible, currentIndex, currentTicket?.id, currentTicket?.price]);
 
   // עדכון מחיר בטבלת ticket_units
   const handleUpdatePrice = async () => {
     const { error } = await supabase
       .from("ticket_units")
       .update({ current_price: newPrice })
-      .eq("id", ticket.id);
+      .eq("id", currentTicket?.id);
 
     if (error) {
       alert("Error, Failed to update price");
@@ -61,7 +77,7 @@ export default function TicketUpdateModal({
     const { error } = await supabase
       .from("ticket_units")
       .update({ status: "removed" })
-      .eq("id", ticket.id);
+      .eq("id", currentTicket?.id);
 
     if (error) {
       alert("Error, Failed to remove from sale");
@@ -72,11 +88,17 @@ export default function TicketUpdateModal({
     }
   };
 
+  if (!currentTicket) return null;
+
   return (
     <TicketModal
       visible={visible}
       onClose={onClose}
-      ticket={ticket}
+      tickets={tickets}
+      ticketIds={ticketIds}
+      currentIndex={currentIndex}
+      handlePrev={() => setCurrentIndex((i) => Math.max(i - 1, 0))}
+      handleNext={() => setCurrentIndex((i) => Math.min(i + 1, ticketIds.length - 1))}
       actions={
         <>
           <Slider
@@ -87,7 +109,7 @@ export default function TicketUpdateModal({
               marginTop: 20,
             }}
             minimumValue={1}
-            maximumValue={originalPrice ?? ticket.price}
+            maximumValue={originalPrice ?? currentTicket.price}
             step={1}
             value={newPrice}
             onValueChange={setNewPrice}

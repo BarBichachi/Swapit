@@ -29,14 +29,17 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
-  const { tickets, refetch } = useTickets();
+  const { tickets, groups, refetch, ticketIdMap } = useTickets();
   const { currentUser, loading, refreshProfile } = useAuthContext();
-  const filteredTickets = useFilteredTickets({
-    tickets,
+
+  // סינון ומיון על קבוצות (ולא על tickets בודדים)
+  const filteredGroups = useFilteredTickets({
+    tickets: groups,
     searchTerm,
     filterOption,
     sortOption,
   });
+
   const pathname = usePathname();
   const params = useLocalSearchParams<{
     open?: string | string[];
@@ -44,7 +47,6 @@ export default function HomePage() {
   }>();
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
-  // capture intent from URL once
   useEffect(() => {
     const open = Array.isArray(params.open) ? params.open[0] : params.open;
     const ticketId = Array.isArray(params.ticketId)
@@ -54,26 +56,35 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.open, params.ticketId]);
 
-  // Ensures pendingTicketId is cleared when navigating away from the page.
   useEffect(() => {
     return () => setPendingTicketId(null);
   }, []);
 
-  // when tickets are loaded AND auth is settled, open and then clean URL
   useEffect(() => {
     if (!pendingTicketId) return;
     if (loading) return;
-    if (!tickets?.length) return;
+    if (!groups?.length) return;
 
-    const t = tickets.find((x) => String(x.id) === pendingTicketId);
+    const t = groups.find((x) => String(x.id) === pendingTicketId);
     if (!t) return;
 
     setSelectedTicket(t);
 
-    // Clean URL so it won't reopen again
     router.replace({ pathname, params: {} } as never);
     setPendingTicketId(null);
-  }, [pendingTicketId, tickets, loading, pathname, router]);
+  }, [pendingTicketId, groups, loading, pathname, router]);
+
+  // שליפת מערך ה-ids של הקבוצה שנבחרה
+  const selectedTicketIds =
+    selectedTicket &&
+    ticketIdMap instanceof Map &&
+    typeof selectedTicket.id === "string"
+      ? ticketIdMap.get(selectedTicket.id) ?? []
+      : [];
+
+  // בדיקת לוג
+  console.log("selectedTicketIds:", selectedTicketIds);
+  console.log("selectedTicket:", selectedTicket);
 
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
@@ -89,7 +100,6 @@ export default function HomePage() {
           setFilterOpen(false);
         }}
       >
-        {/* Welcome Section */}
         <WelcomeHeader
           userName={
             loading
@@ -100,7 +110,6 @@ export default function HomePage() {
           }
         />
 
-        {/* Ticket Filters */}
         <TicketFilters
           sortAnchorRef={sortAnchorRef}
           filterAnchorRef={filterAnchorRef}
@@ -116,27 +125,25 @@ export default function HomePage() {
           setFilterOpen={setFilterOpen}
         />
 
-        {/* Ticket Grid */}
-        <TicketGrid tickets={filteredTickets} onSelect={setSelectedTicket} />
+        {/* הצגת קבוצות ולא כרטיסים בודדים */}
+        <TicketGrid tickets={filteredGroups} onSelect={setSelectedTicket} />
       </ScrollView>
 
-      {/* Floating Add Button */}
       <FloatingAddButton onPress={() => router.push("/(tickets)/add-ticket")} />
 
-      {/* Ticket Details Modal */}
       <TicketDetailsModal
         visible={!!selectedTicket}
         ticket={selectedTicket}
+        ticketIds={selectedTicketIds}
+        tickets={tickets}
         onClose={() => setSelectedTicket(null)}
         onPurchased={() => {
           refetch?.();
           refreshProfile();
           setSelectedTicket(null);
-          // (separately refresh profile/balance if your auth hook exposes a refetch)
         }}
       />
 
-      {/* Sort Dropdown */}
       <Dropdown
         visible={sortOpen}
         options={SORT_OPTIONS}
@@ -151,7 +158,6 @@ export default function HomePage() {
         matchTriggerWidth
       />
 
-      {/*Filter Dropdown */}
       <Dropdown
         visible={filterOpen}
         options={FILTER_OPTIONS}

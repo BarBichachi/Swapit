@@ -69,8 +69,8 @@ export default function TicketFilters({
 
   const icon = isCompact ? 16 : 18;
   const chevron = isCompact ? 14 : 16;
-  const labelFont = isCompact ? 12 : 16;
-  const valueFont = isCompact ? 10 : 15;
+  const labelFont = isCompact ? 13 : 16;
+  const valueFont = isCompact ? 11 : 15;
 
   return (
     <div className="toolbar">

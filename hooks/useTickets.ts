@@ -25,12 +25,15 @@ export const useTickets = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [groups, setGroups] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ticketIdMap, setTicketIdMap] = useState<Map<string, string[]>>(new Map());
+  const [ticketIdMap, setTicketIdMap] = useState<Map<string, string[]>>(
+    new Map()
+  );
 
   const fetchTickets = async () => {
     const { data, error } = await supabase
       .from("ticket_units")
-      .select(`
+      .select(
+        `
         id,
         ticket_id,
         event_id,
@@ -41,7 +44,8 @@ export const useTickets = () => {
           datetime,
           image_url
         )
-      `)
+      `
+      )
       .eq("status", "active");
 
     if (error) {
@@ -143,9 +147,6 @@ export const useTickets = () => {
     for (const g of grouped.values()) {
       ticketIdMap.set(g.ticket_id, g.unit_ids);
     }
-
-    // בדיקת לוג: האם המפה נבנתה נכון?
-    console.log("ticketIdMap:", ticketIdMap);
 
     setTickets(tickets);
     setGroups(groups);

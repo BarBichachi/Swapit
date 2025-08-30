@@ -82,10 +82,6 @@ export default function HomePage() {
       ? ticketIdMap.get(selectedTicket.id) ?? []
       : [];
 
-  // בדיקת לוג
-  console.log("selectedTicketIds:", selectedTicketIds);
-  console.log("selectedTicket:", selectedTicket);
-
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView

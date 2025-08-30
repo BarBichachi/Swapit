@@ -12,9 +12,13 @@ import {
 import placeholder from "@/assets/images/placeholder.png";
 
 const screenWidth = Dimensions.get("window").width;
-const cardMargin = 12;
+const cardGap = 12; // horizontal gap between cards
+const horizontalPadding = 16; // page padding on both sides
 const cardsPerRow = screenWidth < 500 ? 2 : screenWidth < 900 ? 3 : 4;
-const cardWidth = (screenWidth - (cardsPerRow + 1) * cardMargin) / cardsPerRow;
+
+// total gaps = space between cards + padding on sides
+const totalGaps = (cardsPerRow - 1) * cardGap + 2 * horizontalPadding;
+const cardWidth = (screenWidth - totalGaps) / cardsPerRow;
 
 interface TicketCardProps extends Ticket {
   onPress: () => void;
@@ -72,7 +76,7 @@ export default function TicketCard({
         backgroundColor: getBackgroundColor(),
         borderRadius: 10,
         overflow: "hidden",
-        marginBottom: cardMargin,
+        marginBottom: cardGap,
         cursor: "pointer",
         ...animatedStyle,
         ...(isPressed && {

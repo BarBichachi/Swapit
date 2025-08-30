@@ -4,11 +4,13 @@ import React, { useEffect, useState } from "react";
 import {
   Image,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
+  useWindowDimensions,
 } from "react-native";
 
 interface TicketModalProps {
@@ -93,7 +95,17 @@ export default function TicketModal({
     fetchTicket();
   }, [visible, ticketIds, currentIndex, tickets]);
 
+  const { width, height } = useWindowDimensions();
+  const isPhone = width < 480;
+
   if (!visible || !localTicket) return null;
+
+  const modalWidth = Math.min(720, Math.floor(width * (isPhone ? 0.94 : 0.7)));
+  const imageHeight = Math.min(
+    360,
+    Math.floor(height * (isPhone ? 0.35 : 0.5))
+  );
+  const contentMaxHeight = Math.floor(height * 0.82);
 
   return (
     <Modal
@@ -101,9 +113,22 @@ export default function TicketModal({
       transparent
       visible={visible}
       onRequestClose={onClose}
+      statusBarTranslucent
     >
-      <Pressable onPress={onClose} style={styles.overlay}>
-        <Pressable style={styles.container}>
+      <Pressable
+        onPress={onClose}
+        style={[
+          styles.overlay,
+          Platform.OS === "web" ? { width, height } : null,
+        ]}
+      >
+        <Pressable
+          style={[
+            styles.container,
+            { width: modalWidth, maxHeight: contentMaxHeight },
+          ]}
+          onPress={(e: any) => e?.stopPropagation?.()}
+        >
           <View style={{ width: "100%", alignItems: "center" }}>
             <Image
               source={{
@@ -113,7 +138,7 @@ export default function TicketModal({
               }}
               style={{
                 width: "100%",
-                height: 300,
+                height: imageHeight,
                 borderRadius: 10,
                 marginBottom: 10,
               }}
@@ -123,35 +148,51 @@ export default function TicketModal({
               <Text style={styles.imageCloseText}>✕</Text>
             </Pressable>
           </View>
-          <Text style={styles.title}>{localTicket.eventTitle}</Text>
-          <Text>Date: {localTicket.date}</Text>
-          <Text>Price: {localTicket.price}₪</Text>
-          <Text>Quantity: {localTicket.quantity}</Text>
-          {actions}
-          {ticketIds.length > 1 && (
-            <View style={styles.navButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.navButton,
-                  currentIndex === 0 && { opacity: 0.5 },
-                ]}
-                onPress={handlePrev}
-                disabled={currentIndex === 0}
-              >
-                <Text style={styles.navButtonText}>Previous</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.navButton,
-                  currentIndex === ticketIds.length - 1 && { opacity: 0.5 },
-                ]}
-                onPress={handleNext}
-                disabled={currentIndex === ticketIds.length - 1}
-              >
-                <Text style={styles.navButtonText}>Next</Text>
-              </TouchableOpacity>
+
+          <View
+            style={{
+              width: "100%",
+              maxHeight: contentMaxHeight - (imageHeight + 60),
+            }}
+          >
+            <View style={{ paddingHorizontal: 4, alignItems: "center" }}>
+              <Text style={styles.title} numberOfLines={2}>
+                {localTicket.eventTitle}
+              </Text>
+              <Text>Date: {localTicket.date}</Text>
+              <Text>Price: {localTicket.price}₪</Text>
+              <Text>Quantity: {localTicket.quantity}</Text>
+              {actions}
             </View>
-          )}
+
+            {ticketIds.length > 1 && (
+              <View style={[styles.navButtons, isPhone && { gap: 8 }]}>
+                <TouchableOpacity
+                  style={[
+                    styles.navButton,
+                    isPhone && { flex: 1, alignItems: "center" },
+                    currentIndex === 0 && { opacity: 0.5 },
+                  ]}
+                  onPress={handlePrev}
+                  disabled={currentIndex === 0}
+                >
+                  <Text style={styles.navButtonText}>Previous</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.navButton,
+                    isPhone && { flex: 1, alignItems: "center" },
+                    currentIndex === ticketIds.length - 1 && { opacity: 0.5 },
+                  ]}
+                  onPress={handleNext}
+                  disabled={currentIndex === ticketIds.length - 1}
+                >
+                  <Text style={styles.navButtonText}>Next</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -160,14 +201,13 @@ export default function TicketModal({
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: "#00000099",
     justifyContent: "center",
     alignItems: "center",
     cursor: "pointer",
   },
   container: {
-    width: "50%",
     backgroundColor: "white",
     borderRadius: 12,
     padding: 20,
@@ -196,6 +236,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 10,
+    textAlign: "center",
   },
   navButtons: {
     flexDirection: "row",

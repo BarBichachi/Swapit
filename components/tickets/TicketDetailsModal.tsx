@@ -185,7 +185,7 @@ export default function TicketDetailsModal({
         <>
           <Text style={{ marginTop: 20 }}>Set your price:</Text>
           <Slider
-            style={{ width: "60%", height: 20, cursor: "pointer" }}
+            style={{ width: "70%", height: 20, cursor: "pointer" }}
             minimumValue={0}
             maximumValue={currentTicket.price}
             step={1}
@@ -206,7 +206,7 @@ export default function TicketDetailsModal({
                 marginTop: 10,
                 paddingVertical: 12,
                 borderRadius: 8,
-                width: "30%",
+                width: "45%",
                 backgroundColor: buttonColor,
                 opacity: buying || isMine ? 0.7 : 1,
               },

@@ -7,7 +7,7 @@ import {
 } from "@/lib/constants/tickets";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo } from "react";
-import { Pressable, Text } from "react-native";
+import { Pressable, Text, useWindowDimensions } from "react-native";
 import "../../app/styles.css";
 
 type AnchorRef = React.RefObject<any>;
@@ -64,6 +64,14 @@ export default function TicketFilters({
     [filterOption]
   );
 
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
+
+  const icon = isCompact ? 16 : 18;
+  const chevron = isCompact ? 14 : 16;
+  const labelFont = isCompact ? 14 : 16;
+  const valueFont = isCompact ? 13 : 15;
+
   return (
     <div className="toolbar">
       {/* Search */}
@@ -71,8 +79,7 @@ export default function TicketFilters({
         className="toolbar__search"
         style={
           {
-            width: 500,
-            maxWidth: "100%",
+            width: "100%",
           } as any
         }
       >
@@ -98,17 +105,25 @@ export default function TicketFilters({
             }}
             accessibilityRole="button"
             accessibilityLabel="Sort tickets"
+            aria-expanded={sortOpen}
+            aria-controls="sort-menu"
           >
             <Ionicons
               name="funnel-outline"
-              size={18}
+              size={icon}
               style={{ marginRight: 6 }}
             />
-            <Text style={{ fontWeight: "600", marginRight: 4 }}>Sort by:</Text>
-            <Text style={{ opacity: 0.85 }}>{sortLabel}</Text>
+            <Text
+              style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}
+            >
+              Sort by:
+            </Text>
+            <Text style={{ opacity: 0.85, fontSize: valueFont }}>
+              {sortLabel}
+            </Text>
             <Ionicons
               name={sortOpen ? "chevron-up" : "chevron-down"}
-              size={16}
+              size={chevron}
               style={{ marginLeft: 6, opacity: 0.7 }}
             />
           </Pressable>
@@ -127,17 +142,25 @@ export default function TicketFilters({
             }}
             accessibilityRole="button"
             accessibilityLabel="Filter tickets"
+            aria-expanded={filterOpen}
+            aria-controls="filter-menu"
           >
             <Ionicons
               name="options-outline"
-              size={18}
+              size={icon}
               style={{ marginRight: 6 }}
             />
-            <Text style={{ fontWeight: "600", marginRight: 4 }}>Filter:</Text>
-            <Text style={{ opacity: 0.85 }}>{filterLabel}</Text>
+            <Text
+              style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}
+            >
+              Filter:
+            </Text>
+            <Text style={{ opacity: 0.85, fontSize: valueFont }}>
+              {filterLabel}
+            </Text>
             <Ionicons
               name={filterOpen ? "chevron-up" : "chevron-down"}
-              size={16}
+              size={chevron}
               style={{ marginLeft: 6, opacity: 0.7 }}
             />
           </Pressable>

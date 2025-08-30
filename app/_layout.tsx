@@ -6,7 +6,13 @@ import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import Head from "expo-router/head";
 import { useEffect } from "react";
-import { Text, TouchableOpacity, View } from "react-native";
+import {
+  Platform,
+  Text,
+  TouchableOpacity,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import "./styles.css";
 
 export default function RootLayout() {
@@ -49,7 +55,13 @@ export default function RootLayout() {
   );
 }
 
-function HeaderLeftButton() {
+function HeaderLeftButton({
+  isCompact,
+  slotWidth,
+}: {
+  isCompact: boolean;
+  slotWidth: number;
+}) {
   const router = useRouter();
   const { currentUser, loading } = useAuthContext();
 
@@ -60,27 +72,86 @@ function HeaderLeftButton() {
     ? currentUser.fullName || "User"
     : "Guest";
 
+  // icon sizes & font sizes scale down on compact
+  const iconSize = isCompact ? 22 : 26;
+  const walletIcon = isCompact ? 20 : 22;
+  const textSize = isCompact ? 14 : 16;
+
   return (
     <TouchableOpacity
       onPress={() =>
         router.push(isLoggedIn ? "/(user)/profile" : "/(auth)/login")
       }
-      style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        width: slotWidth,
+        paddingLeft: 8,
+      }}
       disabled={loading}
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
     >
-      <Ionicons name="person-circle-outline" size={28} color="black" />
-      <Text style={{ marginLeft: 6, fontSize: 16 }}>{label}</Text>
-
-      {isLoggedIn && (
+      <View
+        style={{
+          flexDirection: isCompact ? "column" : "row",
+          alignItems: isCompact ? "flex-start" : "center",
+          justifyContent: "center",
+          marginLeft: 6,
+          maxWidth: slotWidth,
+          gap: isCompact ? 2 : 0, // tiny vertical gap on compact
+        }}
+      >
         <View
-          style={{ flexDirection: "row", alignItems: "center", marginLeft: 24 }}
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginLeft: isCompact ? 0 : 12,
+            maxWidth: slotWidth,
+          }}
         >
-          <Ionicons name="wallet-outline" size={28} color="black" />
-          <Text style={{ marginLeft: 4, fontSize: 16 }}>
-            {currentUser.balance.toLocaleString()}
+          {/* Name */}
+          <Ionicons
+            name="person-circle-outline"
+            size={iconSize}
+            color="black"
+          />
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={{
+              marginLeft: 4,
+              fontSize: textSize,
+              lineHeight: textSize + 2,
+            }}
+          >
+            {label}
           </Text>
         </View>
-      )}
+        {/* Balance */}
+        {isLoggedIn && (
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              marginLeft: isCompact ? 0 : 12,
+              maxWidth: isCompact ? slotWidth : slotWidth * 0.35,
+            }}
+          >
+            <Ionicons name="wallet-outline" size={walletIcon} color="black" />
+            <Text
+              numberOfLines={1}
+              ellipsizeMode="tail"
+              style={{
+                marginLeft: 4,
+                fontSize: textSize,
+                lineHeight: textSize + 2,
+              }}
+            >
+              {currentUser.balance.toLocaleString()}
+            </Text>
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -90,23 +161,87 @@ function AppDrawer() {
   const { currentUser, loading } = useAuthContext();
   const isLoggedIn = currentUser.isLoggedIn;
 
+  // --- responsive breakpoints (live update on resize) ---
+  const { width } = useWindowDimensions();
+  const isCompact = width < 480;
+
+  // keep left/right header areas same width so the title stays centered
+  const preferredSlot = isCompact ? 200 : 340;
+  // reserve some minimum space for the title between the two slots
+  const minTitleSpace = 120;
+  // don't let L/R slots be so wide that they overlap the title area
+  const slotWidth = Math.max(
+    120, // lower bound so the left contents don't get too cramped
+    Math.min(preferredSlot, Math.floor((width - minTitleSpace) / 2))
+  );
+
+  // fonts
+  const titleFont = isCompact ? 16 : 18;
+  const nameFont = isCompact ? 14 : 16;
+
+  // hairline for border
+  const hairline = Platform.OS === "web" ? 1 : 0.5;
+
+  // Drawer target width
+  const drawerWidth = isCompact
+    ? Math.min(300, Math.floor(width * 0.86))
+    : Math.min(360, Math.floor(width * 0.4));
+
   return (
     <Drawer
       screenOptions={{
+        // ---- header look & feel ----
+        headerStyle: {
+          height: Platform.OS === "web" ? 64 : 56,
+          elevation: 0,
+          shadowOpacity: 0,
+          borderBottomWidth: hairline,
+          borderBottomColor: "#eaeaea",
+          backgroundColor: "#fff",
+        },
+        headerTitleAlign: "center",
+        headerLeftContainerStyle: { width: slotWidth },
+        headerRightContainerStyle: {
+          width: slotWidth,
+        },
+        headerTitleContainerStyle: { flex: 1, alignItems: "center" },
+
+        // ---- title (responsive, clickable) ----
         headerTitle: () => (
-          <TouchableOpacity onPress={() => router.push("/")}>
-            <Text style={{ fontSize: 18, fontWeight: "bold" }}>Swapit</Text>
+          <TouchableOpacity
+            onPress={() => router.replace("/")}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text
+              numberOfLines={1}
+              style={{
+                fontWeight: "700",
+                fontSize: titleFont,
+                letterSpacing: 0.2,
+              }}
+            >
+              Swapit
+            </Text>
           </TouchableOpacity>
         ),
-        headerLeft: () => <HeaderLeftButton />,
+
+        // ---- left & right ----
+        headerLeft: () => (
+          <HeaderLeftButton isCompact={isCompact} slotWidth={slotWidth} />
+        ),
         headerRight: () => (
-          <View style={{ marginRight: 15 }}>
-            <DrawerToggleButton tintColor="black" />
+          <View style={{ marginRight: isCompact ? 0 : 3 }}>
+            <DrawerToggleButton tintColor="#111" />
           </View>
         ),
+
+        // ---- drawer behavior (responsive) ----
         drawerPosition: "right",
-        headerTitleAlign: "center",
-        drawerType: "slide",
+        drawerType: isCompact ? "front" : "slide",
+        swipeEdgeWidth: isCompact ? 24 : 60,
+        drawerStyle: {
+          width: drawerWidth,
+        },
       }}
     >
       <Drawer.Screen
@@ -140,7 +275,6 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="person-add-outline" size={size} color={color} />
           ),
-          // Hide during loading (avoid flicker) or when logged in
           drawerItemStyle: loading || isLoggedIn ? { display: "none" } : {},
         }}
       />
@@ -169,7 +303,7 @@ function AppDrawer() {
         }}
       />
 
-      {/* Always hidden */}
+      {/* Always hidden from drawer */}
       <Drawer.Screen
         name="(auth)/callback"
         options={{ drawerItemStyle: { display: "none" } }}

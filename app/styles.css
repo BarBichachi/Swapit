@@ -229,23 +229,31 @@ form {
   text-align: center;
 }
 
-/* Responsive */
-@media (max-width: 860px) {
+/* ---- Mobile tweaks ---- */
+@media (max-width: 480px) {
   .toolbar {
-    padding: 10px;
     gap: 10px;
+    padding: 8px 12px;
   }
+
   .toolbar__search {
     flex: 1 1 100%;
-    max-width: 600px;
-    width: 100%;
+    max-width: 100%;
+    order: 1; /* search first */
   }
-  .toolbar__controls {
-    flex-wrap: wrap;
-  }
-}
 
-@media (max-width: 560px) {
+  .toolbar__controls {
+    width: 100%;
+    order: 2;
+    gap: 8px;
+  }
+
+  .toolbar__button {
+    justify-content: center; /* center labels on small screens */
+    height: 34px;
+    padding: 0 8px;
+  }
+
   .row {
     grid-template-columns: 1fr;
   }

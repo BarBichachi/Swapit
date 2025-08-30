@@ -1,17 +1,43 @@
 import { supabase } from "@/lib/supabase";
 import type { Profile } from "@/types/profile";
-import { createContext, useContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+type CurrentUser = {
+  // unified, safe-to-use fields (always present with sensible defaults)
+  id: string | null;
+  email: string | null;
+  phone: string | null;
+
+  first_name: string | null;
+  last_name: string | null;
+  fullName: string; // derived: "First Last" or "" when not ready
+  balance: number; // derived: 0 when unknown
+
+  city: string | null;
+  birth_year: number | null;
+  gender: string | null;
+
+  isLoggedIn: boolean;
+
+  // access to raw sources if you ever need them
+  raw: {
+    authUser: any | null;
+    profile: Profile | null;
+  };
+};
 
 type AuthContextValue = {
-  user: any;
-  profile: Profile | null;
-  loading: boolean; // keep for profile ops/spinners
-  hydrated: boolean; // auth has initialized (user can be null)
-  logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
-  userName: string;
+  currentUser: CurrentUser;
+  loading: boolean; // single flag (bootstrap/profile ops)
 
-  // Unify auth actions here (pages should not call supabase direct)
+  refreshProfile: () => Promise<void>;
   signInWithPassword: (
     email: string,
     password: string
@@ -19,6 +45,7 @@ type AuthContextValue = {
   updateProfile: (
     patch: Partial<Profile & { email?: string; phone?: string }>
   ) => Promise<{ error?: Error }>;
+  logout: () => Promise<void>;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
@@ -26,12 +53,20 @@ export const AuthContext = createContext<AuthContextValue | undefined>(
 );
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  // internal sources of truth
+  const [authUser, setAuthUser] = useState<any>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-  const mountedRef = useRef(true);
 
-  // fetch the user's profile from 'profiles' and set profile + user name
+  const mountedRef = useRef(true);
+  const reloadingRef = useRef(false);
+  const hardReload = () => {
+    if (typeof window !== "undefined" && !reloadingRef.current) {
+      reloadingRef.current = true;
+      window.location.reload();
+    }
+  };
+
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from("profiles")
@@ -42,62 +77,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .single();
 
     if (!mountedRef.current) return;
-
-    if (error || !data) {
-      setProfile(null);
-      return;
-    }
-
-    // store everything; pages can pick what they need
-    setProfile({
-      id: data.id,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      email: data.email,
-      phone: data.phone,
-      balance: data.balance,
-      city: data.city,
-      birth_year: data.birth_year,
-      gender: data.gender,
-    });
+    if (error || !data) setProfile(null);
+    else setProfile(data as Profile);
   };
 
-  // bootstrap on app load: check session, set user, fetch profile if logged in
-  const [hydrated, setHydrated] = useState(false);
-
-  const bootstrap = async () => {
-    const { data } = await supabase.auth.getSession();
-    const sessionUser = data?.session?.user ?? null;
-    if (!mountedRef.current) return;
-
-    setUser(sessionUser);
-    if (sessionUser) await fetchProfile(sessionUser.id);
-    setLoading(false);
-    setHydrated(true);
-  };
-
-  // listen to auth state changes (login/logout/refresh)
+  // bootstrap once
   useEffect(() => {
     mountedRef.current = true;
-    bootstrap();
 
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const sessionUser = data?.session?.user ?? null;
+      if (!mountedRef.current) return;
+
+      setAuthUser(sessionUser);
+      if (sessionUser) await fetchProfile(sessionUser.id);
+      setLoading(false);
+    })();
+
+    // auth changes (login/logout/refresh)
     const { data: sub } = supabase.auth.onAuthStateChange(
       async (evt, session) => {
         if (!mountedRef.current) return;
 
         const nextUser = session?.user ?? null;
-        setUser(nextUser);
+        setAuthUser(nextUser);
 
-        if (evt === "SIGNED_OUT" || !nextUser) {
-          setProfile(null);
-          setLoading(false);
+        if (evt === "SIGNED_IN" || evt === "SIGNED_OUT") {
+          hardReload(); // ensure full rehydrate across app
           return;
         }
 
-        // signed in / token refreshed
-        setLoading(true);
-        await fetchProfile(nextUser.id);
-        setLoading(false);
+        if (nextUser) await fetchProfile(nextUser.id);
+        else setProfile(null);
       }
     );
 
@@ -105,36 +117,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Reconcile when tab/window focus or visibility changes
+  // realtime updates for my profile row
   useEffect(() => {
-    const reconcile = async () => {
-      const { data } = await supabase.auth.getSession();
-      const nextUser = data?.session?.user ?? null;
-
-      setUser((prev: any) => (prev?.id === nextUser?.id ? prev : nextUser));
-      if (nextUser) await fetchProfile(nextUser.id);
-      else setProfile(null);
-    };
-
-    const onFocus = () => reconcile();
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") reconcile();
-    };
-
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
+    if (!authUser?.id) return;
+    const ch = supabase
+      .channel("auth-profile-live")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "profiles",
+          filter: `id=eq.${authUser.id}`,
+        },
+        () => fetchProfile(authUser.id)
+      )
+      .subscribe();
 
     return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
+      supabase.removeChannel(ch);
     };
-  }, []);
+  }, [authUser?.id]);
 
   const refreshProfile = async () => {
-    if (user?.id) await fetchProfile(user.id);
+    if (authUser?.id) await fetchProfile(authUser.id);
   };
 
   const signInWithPassword = async (email: string, password: string) => {
@@ -142,56 +150,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
     });
+    if (!error) hardReload();
     return { error: error ?? undefined };
   };
 
-  const updateProfile = async (patch: Partial<Omit<Profile, "id">>) => {
-    if (!user?.id) return { error: new Error("No user") };
-
+  const updateProfile = async (
+    patch: Partial<Profile & { email?: string; phone?: string }>
+  ) => {
+    if (!authUser?.id) return { error: new Error("No user") };
     const { data, error } = await supabase
       .from("profiles")
       .update(patch)
-      .eq("id", user.id)
+      .eq("id", authUser.id)
       .select(
         "id, first_name, last_name, email, phone, balance, city, birth_year, gender"
       )
       .single();
 
-    if (!error && data) {
-      setProfile(data); // data is a full Profile with id present
-    }
-
+    if (!error && data) setProfile(data as Profile);
     return { error: error ?? undefined };
   };
 
   const logout = async () => {
     setLoading(true);
-    // Use default signOut (revokes refresh token); scope:"local" can leave server state lingering
     await supabase.auth.signOut();
-    setUser(null);
+    setAuthUser(null);
     setProfile(null);
     setLoading(false);
+    hardReload();
   };
 
-  const userName = user
-    ? [profile?.first_name?.trim(), profile?.last_name?.trim()]
-        .filter(Boolean)
-        .join(" ")
-        .trim() || "" // ← empty while profile not ready
-    : "Guest";
+  // --- unified view exposed to the app ---
+  const currentUser = useMemo<CurrentUser>(() => {
+    const id = authUser?.id ?? profile?.id ?? null;
+    const email = authUser?.email ?? profile?.email ?? null;
+    const phone = profile?.phone ?? null;
+
+    const first_name = profile?.first_name ?? null;
+    const last_name = profile?.last_name ?? null;
+    const fullName = [first_name?.trim(), last_name?.trim()]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+
+    const balance = Number(profile?.balance ?? 0);
+    const city = profile?.city ?? null;
+    const birth_year = (profile?.birth_year as number | null) ?? null;
+    const gender = profile?.gender ?? null;
+
+    const isLoggedIn = !!authUser?.id;
+
+    return {
+      id,
+      email,
+      phone,
+      first_name,
+      last_name,
+      fullName,
+      balance,
+      city,
+      birth_year,
+      gender,
+      isLoggedIn,
+      raw: { authUser, profile },
+    };
+  }, [authUser, profile]);
 
   return (
     <AuthContext.Provider
       value={{
-        user,
-        profile,
+        currentUser,
         loading,
-        hydrated,
-        logout,
         refreshProfile,
-        userName,
         signInWithPassword,
         updateProfile,
+        logout,
       }}
     >
       {children}

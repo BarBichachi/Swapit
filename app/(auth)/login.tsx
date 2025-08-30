@@ -7,9 +7,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [emptyFields, setEmptyFields] = useState<Set<string>>(new Set());
+
   const router = useRouter();
   const params = useLocalSearchParams<{
     redirect?: string;
@@ -17,12 +18,21 @@ export default function LoginPage() {
     ticketId?: string;
     source?: string;
   }>();
+  const pathname = usePathname();
+
+  // Auth context (single source of truth)
+  const {
+    currentUser,
+    loading: authLoading,
+    signInWithPassword,
+    refreshProfile,
+  } = useAuthContext();
+
+  // Local redirect guard flags
   const [redirecting, setRedirecting] = useState(false);
   const hasNavigatedRef = useRef(false);
-  const { user, hydrated, signInWithPassword, refreshProfile } =
-    useAuthContext();
 
-  // Helper to sanitize + compute destination once
+  // Compute target destination from URL params
   const computeDest = () => {
     const rawDest = params.redirect || "/";
     const dest =
@@ -48,12 +58,11 @@ export default function LoginPage() {
     params.open,
     params.ticketId,
   ]);
-  const pathname = usePathname();
 
-  // Redirects whenever we're logged in
+  // If already logged in (including after hard reload), redirect once
   useEffect(() => {
-    if (!hydrated) return; // wait until auth is initialized
-    if (!user) return; // wait until we actually have a user
+    if (authLoading) return; // wait for bootstrap
+    if (!currentUser.isLoggedIn) return; // only when logged in
     if (redirecting || hasNavigatedRef.current) return;
 
     const { dest, open, ticketId } = destInfo;
@@ -71,45 +80,50 @@ export default function LoginPage() {
             params: open && ticketId ? { open, ticketId } : {},
           } as never)
     );
-  }, [hydrated, user, redirecting, destInfo, router, pathname]);
+  }, [
+    authLoading,
+    currentUser.isLoggedIn,
+    redirecting,
+    destInfo,
+    router,
+    pathname,
+  ]);
 
-  // Backstop: if redirecting stays true but no navigation happens, clear it
+  // Backstop: if redirecting gets stuck, clear it
   useEffect(() => {
     if (!redirecting) return;
     const t = setTimeout(() => setRedirecting(false), 800);
     return () => clearTimeout(t);
   }, [redirecting]);
 
-  // When user becomes null (logged out), allow future redirects again
+  // Allow future redirects again when user becomes logged out
   useEffect(() => {
-    if (!user) {
+    if (!currentUser.isLoggedIn) {
       hasNavigatedRef.current = false;
       setRedirecting(false);
     }
-  }, [user]);
+  }, [currentUser.isLoggedIn]);
 
-  // Don't render while redirecting or before we've checked auth state
   if (redirecting) return null;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
     setEmptyFields((prev) => {
-      const updated = new Set(prev);
-      updated.delete(name);
-      return updated;
+      const next = new Set(prev);
+      next.delete(name);
+      return next;
     });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (redirecting) return; // avoid double submit during navigation
+    if (redirecting) return; // avoid double submit
 
     setError("");
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      // validate & highlight missing fields
       const missing = new Set<string>();
       const email = form.email.trim().toLowerCase();
       const password = form.password;
@@ -123,13 +137,13 @@ export default function LoginPage() {
         return;
       }
 
-      // sign in
       const { error: loginError } = await signInWithPassword(email, password);
+      // Note: signInWithPassword triggers a hard reload on success.
+      // The effect above will redirect after the reload since query params persist.
 
       if (loginError) {
         setError(loginError.message);
 
-        // highlight likely-problem fields based on the error text
         const msg = loginError.message.toLowerCase();
         if (msg.includes("invalid") || msg.includes("credentials")) {
           setEmptyFields(new Set(["email", "password"]));
@@ -141,19 +155,17 @@ export default function LoginPage() {
         return;
       }
 
-      // Trigger a background profile fetch (in case the row exists / RLS allows)
+      // Fire-and-forget profile refresh (safe even if reload occurs first)
       refreshProfile().catch(() => {});
-
-      // success: clear any previous highlights
       setEmptyFields(new Set());
     } catch (err: any) {
       setError(err?.message ?? "Login failed");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
-  if (!hydrated || redirecting) {
+  if (authLoading || redirecting) {
     return (
       <div className="form-container">
         <h1 className="form-title">Loading…</h1>
@@ -201,15 +213,14 @@ export default function LoginPage() {
 
         {error && <p className="form-error">{error}</p>}
 
-        <button type="submit" className="form-button" disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+        <button type="submit" className="form-button" disabled={submitting}>
+          {submitting ? "Logging in..." : "Login"}
         </button>
 
         <div
           className="text-link"
           style={{ marginTop: "15px", color: "#2c74e2", cursor: "pointer" }}
           onClick={() => {
-            // TODO: Implement password reset functionality
             alert("This feature doesn't work right now.");
           }}
         >

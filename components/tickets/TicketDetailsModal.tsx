@@ -1,9 +1,9 @@
 import TicketModal from "@/components/tickets/TicketModal";
-import useAuthGuard from "@/hooks/useAuthGuard";
-import useProfile from "@/hooks/useProfile";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { purchaseTicketNaive } from "@/lib/purchase";
 import { Ticket } from "@/types/ticket";
 import Slider from "@react-native-assets/slider";
+import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text } from "react-native";
 
@@ -20,18 +20,20 @@ export default function TicketDetailsModal({
   ticket,
   onPurchased,
 }: TicketDetailsModalProps) {
+  const router = useRouter();
+  const { currentUser } = useAuthContext();
+
   const [suggestedPrice, setSuggestedPrice] = useState(ticket?.price ?? 0);
   const [buying, setBuying] = useState(false);
   const inFlightRef = useRef(false);
   const idempoRef = useRef<string | undefined>(undefined);
-  const { isAuthed, requireAuth } = useAuthGuard();
-  const { userId } = useProfile();
+
+  const userId = currentUser.id ?? null;
+  const isLoggedIn = currentUser.isLoggedIn;
   const isMine = !!userId && ticket?.sellerId === userId;
 
   useEffect(() => {
-    if (visible && ticket?.price != null) {
-      setSuggestedPrice(ticket.price);
-    }
+    if (visible && ticket?.price != null) setSuggestedPrice(ticket.price);
   }, [visible, ticket?.price]);
 
   useEffect(() => {
@@ -54,12 +56,8 @@ export default function TicketDetailsModal({
     };
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", onVis);
+      return () => document.removeEventListener("visibilitychange", onVis);
     }
-    return () => {
-      if (typeof document !== "undefined") {
-        document.removeEventListener("visibilitychange", onVis);
-      }
-    };
   }, []);
 
   if (!ticket) return null;
@@ -73,11 +71,11 @@ export default function TicketDetailsModal({
     : "Offer";
   const buttonText = isMine
     ? authedText
-    : isAuthed
+    : isLoggedIn
     ? authedText
     : `Login to ${authedText}`;
 
-  // runs only after auth is confirmed
+  // Actual action (only when logged in and not buying own ticket)
   const actionCore = async () => {
     if (isMine) {
       alert("You can’t purchase your own ticket.");
@@ -98,7 +96,6 @@ export default function TicketDetailsModal({
           idempoRef.current,
           userId!
         );
-
         alert("Purchase completed.");
         onPurchased?.();
       } else {
@@ -114,41 +111,35 @@ export default function TicketDetailsModal({
   };
 
   const handleAction = async () => {
-    // stale guard release after tab switch
+    // release stale guard after tab switch
     if (!buying && inFlightRef.current) inFlightRef.current = false;
 
-    // prevent double-press / rapid re-entry
+    // prevent double-press
     if (inFlightRef.current || buying) return;
     inFlightRef.current = true;
 
-    // If we already know the user (from useProfile), run directly
-    if (userId) {
-      try {
-        await actionCore();
-      } finally {
-        inFlightRef.current = false;
-        idempoRef.current = undefined;
+    try {
+      // If guest: close modal and navigate to login with intent
+      if (!isLoggedIn) {
+        onClose();
+        router.push({
+          pathname: "/(auth)/login",
+          params: {
+            source: "guard",
+            redirect: "/", // or the page you want to land on after login
+            open: "ticket",
+            ticketId: String(ticket.id),
+          },
+        } as never);
+        return;
       }
-      return;
-    }
 
-    // If not logged in: close modal and redirect to login (handled in hook)
-    requireAuth(
-      async () => {
-        await actionCore(); // actionCore manages buying + idempotency
-        inFlightRef.current = false;
-        idempoRef.current = undefined;
-      },
-      {
-        onFail: () => {
-          // auth failed or redirected: release the guard
-          inFlightRef.current = false;
-          idempoRef.current = undefined;
-          onClose();
-        },
-        redirectParams: { open: "ticket", ticketId: String(ticket.id) },
-      }
-    );
+      // Logged in: run the core action
+      await actionCore();
+    } finally {
+      inFlightRef.current = false;
+      idempoRef.current = undefined;
+    }
   };
 
   return (

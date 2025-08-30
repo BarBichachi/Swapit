@@ -1,5 +1,4 @@
 import { AuthProvider, useAuthContext } from "@/contexts/AuthContext";
-import useProfile from "@/hooks/useProfile";
 import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { DrawerToggleButton } from "@react-navigation/drawer";
@@ -52,31 +51,33 @@ export default function RootLayout() {
 
 function HeaderLeftButton() {
   const router = useRouter();
-  const { userName, loading, user, hydrated, profile } = useAuthContext();
-  const { balance, loading: profileLoading } = useProfile();
+  const { currentUser, loading } = useAuthContext();
+
+  const isLoggedIn = currentUser.isLoggedIn;
+  const label = loading
+    ? "…"
+    : isLoggedIn
+    ? currentUser.fullName || "User"
+    : "Guest";
 
   return (
     <TouchableOpacity
-      onPress={() => router.push(user ? "/(user)/profile" : "/(auth)/login")}
+      onPress={() =>
+        router.push(isLoggedIn ? "/(user)/profile" : "/(auth)/login")
+      }
       style={{ flexDirection: "row", alignItems: "center", marginLeft: 15 }}
-      disabled={!hydrated || loading || (user && !profile) || profileLoading}
+      disabled={loading}
     >
       <Ionicons name="person-circle-outline" size={28} color="black" />
-      <Text style={{ marginLeft: 6, fontSize: 16 }}>
-        {!hydrated || loading || (user && !profile)
-          ? "…"
-          : user
-          ? userName || "User"
-          : "Guest"}
-      </Text>
+      <Text style={{ marginLeft: 6, fontSize: 16 }}>{label}</Text>
 
-      {user && balance !== null && (
+      {isLoggedIn && (
         <View
           style={{ flexDirection: "row", alignItems: "center", marginLeft: 24 }}
         >
           <Ionicons name="wallet-outline" size={28} color="black" />
           <Text style={{ marginLeft: 4, fontSize: 16 }}>
-            {balance.toLocaleString()}
+            {currentUser.balance.toLocaleString()}
           </Text>
         </View>
       )}
@@ -86,8 +87,8 @@ function HeaderLeftButton() {
 
 function AppDrawer() {
   const router = useRouter();
-  const { user, hydrated } = useAuthContext();
-  const isLoggedIn = !!user;
+  const { currentUser, loading } = useAuthContext();
+  const isLoggedIn = currentUser.isLoggedIn;
 
   return (
     <Drawer
@@ -118,6 +119,7 @@ function AppDrawer() {
           ),
         }}
       />
+
       <Drawer.Screen
         name="(user)/profile"
         options={{
@@ -138,7 +140,8 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="person-add-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isLoggedIn || !hydrated ? { display: "none" } : {},
+          // Hide during loading (avoid flicker) or when logged in
+          drawerItemStyle: loading || isLoggedIn ? { display: "none" } : {},
         }}
       />
       <Drawer.Screen
@@ -149,7 +152,7 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="log-in-outline" size={size} color={color} />
           ),
-          drawerItemStyle: isLoggedIn || !hydrated ? { display: "none" } : {},
+          drawerItemStyle: loading || isLoggedIn ? { display: "none" } : {},
         }}
       />
 
@@ -162,7 +165,7 @@ function AppDrawer() {
           drawerIcon: ({ size, color }) => (
             <Ionicons name="log-out-outline" size={size} color={color} />
           ),
-          drawerItemStyle: !isLoggedIn || !hydrated ? { display: "none" } : {},
+          drawerItemStyle: loading || !isLoggedIn ? { display: "none" } : {},
         }}
       />
 

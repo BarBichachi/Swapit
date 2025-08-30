@@ -80,7 +80,12 @@ export default function TicketUpdateModal({
       actions={
         <>
           <Slider
-            style={{ width: "60%", height: 20, cursor: "pointer", marginTop: 20 }}
+            style={{
+              width: "60%",
+              height: 20,
+              cursor: "pointer",
+              marginTop: 20,
+            }}
             minimumValue={1}
             maximumValue={originalPrice ?? ticket.price}
             step={1}
@@ -95,17 +100,43 @@ export default function TicketUpdateModal({
           </Text>
           <Pressable
             onPress={handleUpdatePrice}
-            style={{ marginTop: 10, paddingVertical: 12, borderRadius: 8, width: "60%", backgroundColor: "#4FC3F7" }}
+            style={{
+              marginTop: 10,
+              paddingVertical: 12,
+              borderRadius: 8,
+              width: "60%",
+              backgroundColor: "#4FC3F7",
+            }}
           >
-            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 14 }}>
+            <Text
+              style={{
+                color: "#fff",
+                textAlign: "center",
+                fontWeight: "600",
+                fontSize: 14,
+              }}
+            >
               Update Price
             </Text>
           </Pressable>
           <Pressable
             onPress={handleRemoveFromSale}
-            style={{ marginTop: 10, paddingVertical: 12, borderRadius: 8, width: "60%", backgroundColor: "#FFA726" }}
+            style={{
+              marginTop: 10,
+              paddingVertical: 12,
+              borderRadius: 8,
+              width: "60%",
+              backgroundColor: "#FFA726",
+            }}
           >
-            <Text style={{ color: "#fff", textAlign: "center", fontWeight: "600", fontSize: 14 }}>
+            <Text
+              style={{
+                color: "#fff",
+                textAlign: "center",
+                fontWeight: "600",
+                fontSize: 14,
+              }}
+            >
               Remove from Sale
             </Text>
           </Pressable>

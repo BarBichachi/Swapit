@@ -85,7 +85,9 @@ const formatPhone = (phone: string) => {
 };
 
 export default function ProfileScreen() {
-  const { user, profile, hydrated } = useAuthContext();
+  const { currentUser, loading } = useAuthContext();
+  const router = useRouter();
+
   const [selectedSellingTicket, setSelectedSellingTicket] = useState<
     any | null
   >(null);
@@ -95,20 +97,18 @@ export default function ProfileScreen() {
   >(null);
   const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
 
-  const router = useRouter();
+  // Tickets I'm selling
+  const { tickets, loading: loadingSelling, refetch } = useTickets();
 
-  // משיכת הכרטיסים שאני מוכר
-  const { tickets, loading, refetch } = useTickets();
-
-  // משיכת הכרטיסים שרכשתי (hook חדש)
+  // Tickets I've purchased
   const { tickets: purchasedTickets, loading: loadingPurchased } =
-    usePurchasedTickets(profile?.id ?? null);
+    usePurchasedTickets(currentUser.id ?? null);
 
   const handleUpdateDetails = () => {
     router.push("/(user)/updatedetails");
   };
 
-  if (!hydrated || loading || loadingPurchased) {
+  if (loading || loadingSelling || loadingPurchased) {
     return (
       <View style={styles.centerTop}>
         <Text>Loading data...</Text>
@@ -116,7 +116,7 @@ export default function ProfileScreen() {
     );
   }
 
-  if (!user || !profile) {
+  if (!currentUser.isLoggedIn) {
     return (
       <View style={styles.centerTop}>
         <Text>Not logged in</Text>
@@ -130,29 +130,19 @@ export default function ProfileScreen() {
     );
   }
 
-  // כרטיסים שאני מוכר (המשתמש הנוכחי הוא הבעלים של הכרטיס ואין לו טרנזקציה)
-  const mySellingTickets = tickets.filter((t) => t.sellerId === user.id);
-
-  if (!hydrated || loading || loadingPurchased || !profile) {
-    return (
-      <View style={styles.centerTop}>
-        <Text>Loading data...</Text>
-      </View>
-    );
-  }
+  const mySellingTickets = tickets.filter((t) => t.sellerId === currentUser.id);
 
   return (
     <ScrollView contentContainerStyle={styles.centerTop}>
+      {/* Profile Info */}
       <View style={styles.profileBox}>
-        <Text style={styles.title}>
-          {profile.first_name} {profile.last_name}
-        </Text>
-        <Text>Email: {profile.email ?? "-"}</Text>
-        <Text>Phone: {formatPhone(profile.phone ?? "")}</Text>
-        <Text>Balance: {(profile.balance ?? 0).toLocaleString()} coins</Text>
-        <Text>City: {profile.city ?? "-"}</Text>
-        <Text>Birth Year: {profile.birth_year ?? "-"}</Text>
-        <Text>Gender: {profile.gender ?? "-"}</Text>
+        <Text style={styles.title}>{currentUser.fullName}</Text>
+        <Text>Email: {currentUser.email ?? "-"}</Text>
+        <Text>Phone: {formatPhone(currentUser.phone ?? "")}</Text>
+        <Text>Balance: {currentUser.balance.toLocaleString()} coins</Text>
+        <Text>City: {currentUser.city ?? "-"}</Text>
+        <Text>Birth Year: {currentUser.birth_year ?? "-"}</Text>
+        <Text>Gender: {currentUser.gender ?? "-"}</Text>
 
         <TouchableOpacity
           style={styles.updateButton}
@@ -162,6 +152,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Selling Tickets */}
       <Text style={[styles.title, { marginTop: 24 }]}>Tickets I'm Selling</Text>
       <View style={styles.ticketsList}>
         {mySellingTickets.length === 0 ? (
@@ -200,7 +191,7 @@ export default function ProfileScreen() {
         }}
       />
 
-      {/* הצגת כרטיסים שנרכשו */}
+      {/* Purchased Tickets */}
       <Text style={[styles.title, { marginTop: 32 }]}>Tickets I Purchased</Text>
       <View style={styles.ticketsList}>
         {purchasedTickets.length === 0 ? (

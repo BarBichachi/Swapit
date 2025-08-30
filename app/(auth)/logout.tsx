@@ -4,42 +4,44 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
-// auto sign-out on mount, then redirect home
+// Auto sign-out on mount, then redirect home
 export default function LogoutPage() {
-  const { user, logout, hydrated } = useAuthContext();
+  const { currentUser, loading, logout } = useAuthContext();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
+  const [localLoading, setLocalLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!hydrated) return;
+    // Wait for auth bootstrap to finish
+    if (loading) return;
+
     let active = true;
 
-    // if already logged out, just go home
-    if (!user) {
+    // If already logged out, just go home
+    if (!currentUser.isLoggedIn) {
       router.replace("/");
       return;
     }
 
     (async () => {
       try {
-        await logout(); // provider handles supabase signOut + state
+        await logout(); // AuthContext handles Supabase signOut + hard reload
         if (!active) return;
         router.replace("/");
       } catch (e: any) {
         if (!active) return;
         setErr(e?.message || "Sign out failed");
       } finally {
-        if (active) setLoading(false);
+        if (active) setLocalLoading(false);
       }
     })();
 
     return () => {
       active = false;
     };
-  }, [user, logout, router, hydrated]);
+  }, [loading, currentUser.isLoggedIn, logout, router]);
 
-  if (!hydrated) {
+  if (loading) {
     return (
       <div className="form-container">
         <h1 className="form-title">Preparing sign out…</h1>
@@ -49,9 +51,11 @@ export default function LogoutPage() {
 
   return (
     <div className="form-container">
-      <h1 className="form-title">{loading ? "Signing out…" : "Signed out"}</h1>
+      <h1 className="form-title">
+        {localLoading ? "Signing out…" : "Signed out"}
+      </h1>
       {err && <p className="form-error">{err}</p>}
-      {!loading && (
+      {!localLoading && (
         <button className="form-button" onClick={() => router.replace("/")}>
           Go Home
         </button>

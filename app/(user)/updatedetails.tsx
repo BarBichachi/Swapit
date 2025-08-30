@@ -73,26 +73,28 @@ function validateName(name: string) {
 
 export default function UpdateDetailsScreen() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const { user, profile, hydrated, updateProfile, refreshProfile } =
+  const { currentUser, loading, updateProfile, refreshProfile } =
     useAuthContext();
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
 
+  const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  // Seed fields from currentUser when it’s available
   useEffect(() => {
-    if (!profile) return;
-    setFirstName(profile.first_name ?? "");
-    setLastName(profile.last_name ?? "");
-    setEmail(profile.email ?? "");
-    setPhone(profile.phone ?? "");
-  }, [profile]);
+    if (!currentUser) return; // defensive
+    setFirstName(currentUser.first_name ?? "");
+    setLastName(currentUser.last_name ?? "");
+    setEmail(currentUser.email ?? "");
+    setPhone(currentUser.phone ?? "");
+  }, [currentUser]);
 
   const handleSubmit = async () => {
-    let newErrors: { [key: string]: string } = {};
+    const newErrors: { [key: string]: string } = {};
     if (!validateName(firstName))
       newErrors.firstName = "Enter a valid first name";
     if (!validateName(lastName)) newErrors.lastName = "Enter a valid last name";
@@ -102,31 +104,32 @@ export default function UpdateDetailsScreen() {
     setErrors(newErrors);
     if (Object.keys(newErrors).length > 0) return;
 
-    if (!user?.id) {
+    if (!currentUser.isLoggedIn || !currentUser.id) {
       Alert.alert("Error", "User not logged in");
       return;
     }
 
-    setLoading(true);
+    setSubmitting(true);
     const { error } = await updateProfile({
       first_name: firstName,
       last_name: lastName,
       email,
       phone: phone.replace(/\D/g, ""),
     });
-    setLoading(false);
+    setSubmitting(false);
 
     if (error) {
       Alert.alert("Error", error.message);
-    } else {
-      // ensure any subscribers refetch if needed
-      await refreshProfile();
-      Alert.alert("Success", "Details updated!");
-      router.back();
+      return;
     }
+
+    // Ensure any subscribers see the fresh profile (usually already set by context)
+    await refreshProfile();
+    Alert.alert("Success", "Details updated!");
+    router.back();
   };
 
-  if (!hydrated) {
+  if (loading) {
     return (
       <View style={styles.container}>
         <Text>Loading…</Text>
@@ -134,18 +137,10 @@ export default function UpdateDetailsScreen() {
     );
   }
 
-  if (!user) {
+  if (!currentUser.isLoggedIn) {
     return (
       <View style={styles.container}>
         <Text>Please log in first</Text>
-      </View>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <View style={styles.container}>
-        <Text>Loading profile…</Text>
       </View>
     );
   }
@@ -202,10 +197,10 @@ export default function UpdateDetailsScreen() {
         <TouchableOpacity
           style={styles.button}
           onPress={handleSubmit}
-          disabled={loading || !profile || !user}
+          disabled={submitting || !currentUser.isLoggedIn}
         >
           <Text style={styles.buttonText}>
-            {loading ? "Updating..." : "Update"}
+            {submitting ? "Updating..." : "Update"}
           </Text>
         </TouchableOpacity>
       </View>

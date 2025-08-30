@@ -4,9 +4,8 @@ import WelcomeHeader from "@/components/home/WelcomeHeader";
 import TicketDetailsModal from "@/components/tickets/TicketDetailsModal";
 import TicketFilters from "@/components/tickets/TicketFilters";
 import TicketGrid from "@/components/tickets/TicketGrid";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { useFilteredTickets } from "@/hooks/useFilteredTickets";
-import { useProfile } from "@/hooks/useProfile";
 import { useTickets } from "@/hooks/useTickets";
 import {
   FILTER_OPTIONS,
@@ -30,9 +29,8 @@ export default function HomePage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
-  const { refetchProfile } = useProfile();
   const { tickets, refetch } = useTickets();
-  const { userName, loading: authLoading, hydrated, profile } = useAuth();
+  const { currentUser, loading, refreshProfile } = useAuthContext();
   const filteredTickets = useFilteredTickets({
     tickets,
     searchTerm,
@@ -64,8 +62,7 @@ export default function HomePage() {
   // when tickets are loaded AND auth is settled, open and then clean URL
   useEffect(() => {
     if (!pendingTicketId) return;
-    if (authLoading) return;
-    if (!hydrated) return;
+    if (loading) return;
     if (!tickets?.length) return;
 
     const t = tickets.find((x) => String(x.id) === pendingTicketId);
@@ -76,7 +73,7 @@ export default function HomePage() {
     // Clean URL so it won't reopen again
     router.replace({ pathname, params: {} } as never);
     setPendingTicketId(null);
-  }, [pendingTicketId, tickets, authLoading, userName, pathname, router]);
+  }, [pendingTicketId, tickets, loading, pathname, router]);
 
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
@@ -95,7 +92,11 @@ export default function HomePage() {
         {/* Welcome Section */}
         <WelcomeHeader
           userName={
-            !hydrated || authLoading || !!profile === false ? "Guest" : userName
+            loading
+              ? "Guest"
+              : currentUser.isLoggedIn
+              ? currentUser.fullName || "User"
+              : "Guest"
           }
         />
 
@@ -129,7 +130,7 @@ export default function HomePage() {
         onClose={() => setSelectedTicket(null)}
         onPurchased={() => {
           refetch?.();
-          refetchProfile();
+          refreshProfile();
           setSelectedTicket(null);
           // (separately refresh profile/balance if your auth hook exposes a refetch)
         }}

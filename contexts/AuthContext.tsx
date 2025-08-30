@@ -60,9 +60,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const tabId = useMemo(() => Math.random().toString(36).slice(2), []);
   const mountedRef = useRef(true);
   const reloadingRef = useRef(false);
-
+  const pendingReloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
   const RELOAD_KEY = "swapit:authReload"; // localStorage
-  const RELOAD_TTL_MS = 10_000;
+  const RELOAD_TTL_MS = 1_000;
+
+  const armFallbackReload = () => {
+    // If the auth event doesn't arrive (rare), reload after 1s
+    if (pendingReloadTimerRef.current)
+      clearTimeout(pendingReloadTimerRef.current);
+    pendingReloadTimerRef.current = setTimeout(() => {
+      if (!reloadingRef.current) hardReload();
+    }, 1000);
+  };
+
+  const cancelFallbackReload = () => {
+    if (pendingReloadTimerRef.current) {
+      clearTimeout(pendingReloadTimerRef.current);
+      pendingReloadTimerRef.current = null;
+    }
+  };
 
   const markThisTabAsReloadInitiator = () => {
     try {
@@ -145,22 +163,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const isStale = !!marker && Date.now() - marker.ts > RELOAD_TTL_MS;
 
           if (isMine) {
-            // This tab initiated: clear and hard-reload (exactly once)
             clearReloadMarker();
-            hardReload();
+            cancelFallbackReload();
+            hardReload(); // exactly once, in the initiating tab
             return;
           }
-          if (isStale) {
-            // Clean up any old marker so it doesn't linger forever
-            clearReloadMarker();
-          }
+          if (isStale) clearReloadMarker();
 
-          // Another tab initiated: do NOT reload; just hydrate/clear state
+          // Other tabs: no reload; just hydrate/clear state
           if (nextUser) await fetchProfile(nextUser.id);
           else setProfile(null);
           return;
         }
 
+        // Other events
         if (nextUser) await fetchProfile(nextUser.id);
         else setProfile(null);
       }
@@ -169,6 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
+      cancelFallbackReload();
     };
   }, []);
 
@@ -200,11 +217,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithPassword = async (email: string, password: string) => {
     markThisTabAsReloadInitiator();
+    armFallbackReload(); // optional safety
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    if (!error) hardReload();
+    if (error) {
+      clearReloadMarker();
+      cancelFallbackReload();
+    }
     return { error: error ?? undefined };
   };
 
@@ -228,11 +249,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setLoading(true);
     markThisTabAsReloadInitiator();
+    armFallbackReload(); // optional safety
     await supabase.auth.signOut();
     setAuthUser(null);
     setProfile(null);
     setLoading(false);
-    hardReload();
+    // no hardReload() here
   };
 
   // --- unified view exposed to the app ---

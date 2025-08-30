@@ -86,19 +86,15 @@ const formatPhone = (phone: string) => {
 
 export default function ProfileScreen() {
   const { user, profile, hydrated } = useAuthContext();
-  const [selectedSellingTicket, setSelectedSellingTicket] = useState<
-    any | null
-  >(null);
+  const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(null);
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<
-    any | null
-  >(null);
+  const [selectedPurchasedTicket, setSelectedPurchasedTicket] = useState<any | null>(null);
   const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
 
   const router = useRouter();
 
   // משיכת הכרטיסים שאני מוכר
-  const { tickets, loading, refetch } = useTickets();
+  const { tickets, groups, loading, refetch, ticketIdMap } = useTickets();
 
   // משיכת הכרטיסים שרכשתי (hook חדש)
   const { tickets: purchasedTickets, loading: loadingPurchased } =
@@ -130,16 +126,13 @@ export default function ProfileScreen() {
     );
   }
 
-  // כרטיסים שאני מוכר (המשתמש הנוכחי הוא הבעלים של הכרטיס ואין לו טרנזקציה)
-  const mySellingTickets = tickets.filter((t) => t.sellerId === user.id);
+  // קבוצות שאני מוכר (המשתמש הנוכחי הוא הבעלים של הקבוצה)
+  const mySellingGroups = groups.filter((g) => g.sellerId === user.id);
 
-  if (!hydrated || loading || loadingPurchased || !profile) {
-    return (
-      <View style={styles.centerTop}>
-        <Text>Loading data...</Text>
-      </View>
-    );
-  }
+  // מזהי כל היחידות בקבוצה שנבחרה
+  const mySellingTicketIds = selectedSellingGroup
+    ? ticketIdMap.get(selectedSellingGroup.ticket_id) ?? []
+    : [];
 
   return (
     <ScrollView contentContainerStyle={styles.centerTop}>
@@ -164,7 +157,7 @@ export default function ProfileScreen() {
 
       <Text style={[styles.title, { marginTop: 24 }]}>Tickets I'm Selling</Text>
       <View style={styles.ticketsList}>
-        {mySellingTickets.length === 0 ? (
+        {mySellingGroups.length === 0 ? (
           <View style={{ alignItems: "center" }}>
             <Text>No tickets for sale</Text>
             <Pressable
@@ -177,12 +170,12 @@ export default function ProfileScreen() {
             </Pressable>
           </View>
         ) : (
-          mySellingTickets.map((ticket, index) => (
+          mySellingGroups.map((group, index) => (
             <TicketCard
-              key={ticket.id ?? index}
-              {...ticket}
+              key={group.id ?? index}
+              {...group}
               onPress={() => {
-                setSelectedSellingTicket(ticket);
+                setSelectedSellingGroup(group);
                 setUpdateModalVisible(true);
               }}
             />
@@ -193,7 +186,9 @@ export default function ProfileScreen() {
       <TicketUpdateModal
         visible={updateModalVisible}
         onClose={() => setUpdateModalVisible(false)}
-        ticket={selectedSellingTicket}
+        ticket={selectedSellingGroup}
+        ticketIds={mySellingTicketIds}
+        tickets={tickets}
         onUpdated={() => {
           setUpdateModalVisible(false);
           refetch();
@@ -232,7 +227,7 @@ export default function ProfileScreen() {
       <TicketModal
         visible={purchasedModalVisible}
         onClose={() => setPurchasedModalVisible(false)}
-        ticket={selectedPurchasedTicket}
+        tickets={selectedPurchasedTicket ? [selectedPurchasedTicket] : []}
       />
     </ScrollView>
   );

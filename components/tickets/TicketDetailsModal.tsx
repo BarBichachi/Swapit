@@ -11,6 +11,8 @@ interface TicketDetailsModalProps {
   visible: boolean;
   onClose: () => void;
   ticket: Ticket | null;
+  ticketIds?: string[];
+  tickets?: Ticket[];
   onPurchased?: () => void;
 }
 
@@ -18,6 +20,8 @@ export default function TicketDetailsModal({
   visible,
   onClose,
   ticket,
+  ticketIds = [],
+  tickets = [],
   onPurchased,
 }: TicketDetailsModalProps) {
   const [suggestedPrice, setSuggestedPrice] = useState(ticket?.price ?? 0);
@@ -26,20 +30,38 @@ export default function TicketDetailsModal({
   const idempoRef = useRef<string | undefined>(undefined);
   const { isAuthed, requireAuth } = useAuthGuard();
   const { userId } = useProfile();
-  const isMine = !!userId && ticket?.sellerId === userId;
 
+  // דפדוף בין כרטיסים בקבוצה
+  const [currentIndex, setCurrentIndex] = useState(0);
   useEffect(() => {
-    if (visible && ticket?.price != null) {
-      setSuggestedPrice(ticket.price);
+    if (!visible || !ticket || !ticketIds.length) {
+      setCurrentIndex(0);
+      return;
     }
-  }, [visible, ticket?.price]);
+    const idx = ticketIds.findIndex((id) => id === ticket.id);
+    setCurrentIndex(idx >= 0 ? idx : 0);
+  }, [visible, ticket?.id, ticketIds]);
+
+  const currentTicketId = ticketIds[currentIndex] ?? ticket?.id;
+  const currentTicket =
+    tickets.find((t) => t.id === currentTicketId) ?? ticket;
+
+  const isMine = !!userId && currentTicket?.sellerId === userId;
+
+  // תיקון: עדכון suggestedPrice בכל מעבר כרטיס
+  useEffect(() => {
+    if (visible && ticketIds.length && tickets.length) {
+      const t = tickets.find((t) => t.id === ticketIds[currentIndex]);
+      if (t?.price != null) setSuggestedPrice(t.price);
+    }
+  }, [visible, currentIndex, ticketIds, tickets]);
 
   useEffect(() => {
     if (!visible) return;
     inFlightRef.current = false;
     idempoRef.current = undefined;
     setBuying(false);
-  }, [visible, ticket?.id]);
+  }, [visible, currentTicket?.id]);
 
   useEffect(() => {
     const onVis = () => {
@@ -62,9 +84,9 @@ export default function TicketDetailsModal({
     };
   }, []);
 
-  if (!ticket) return null;
+  if (!currentTicket) return null;
 
-  const isFullPrice = suggestedPrice === ticket.price;
+  const isFullPrice = suggestedPrice === currentTicket.price;
   const buttonColor = isFullPrice ? "#4FC3F7" : "#FFA726";
   const authedText = isMine
     ? "You own this ticket"
@@ -93,7 +115,7 @@ export default function TicketDetailsModal({
             `${Date.now()}-${Math.random().toString(16).slice(2)}`;
         }
         await purchaseTicketNaive(
-          String(ticket.id),
+          String(currentTicketId),
           1,
           idempoRef.current,
           userId!
@@ -114,14 +136,10 @@ export default function TicketDetailsModal({
   };
 
   const handleAction = async () => {
-    // stale guard release after tab switch
     if (!buying && inFlightRef.current) inFlightRef.current = false;
-
-    // prevent double-press / rapid re-entry
     if (inFlightRef.current || buying) return;
     inFlightRef.current = true;
 
-    // If we already know the user (from useProfile), run directly
     if (userId) {
       try {
         await actionCore();
@@ -132,37 +150,46 @@ export default function TicketDetailsModal({
       return;
     }
 
-    // If not logged in: close modal and redirect to login (handled in hook)
     requireAuth(
       async () => {
-        await actionCore(); // actionCore manages buying + idempotency
+        await actionCore();
         inFlightRef.current = false;
         idempoRef.current = undefined;
       },
       {
         onFail: () => {
-          // auth failed or redirected: release the guard
           inFlightRef.current = false;
           idempoRef.current = undefined;
           onClose();
         },
-        redirectParams: { open: "ticket", ticketId: String(ticket.id) },
+        redirectParams: { open: "ticket", ticketId: String(currentTicketId) },
       }
     );
+  };
+
+  const handlePrev = () => {
+    if (currentIndex > 0) setCurrentIndex(currentIndex - 1);
+  };
+
+  const handleNext = () => {
+    if (currentIndex < ticketIds.length - 1) setCurrentIndex(currentIndex + 1);
   };
 
   return (
     <TicketModal
       visible={visible}
       onClose={onClose}
-      ticket={ticket}
+      ticketIds={ticketIds}
+      currentIndex={currentIndex}
+      handlePrev={handlePrev}
+      handleNext={handleNext}
       actions={
         <>
           <Text style={{ marginTop: 20 }}>Set your price:</Text>
           <Slider
             style={{ width: "60%", height: 20, cursor: "pointer" }}
             minimumValue={0}
-            maximumValue={ticket.price}
+            maximumValue={currentTicket.price}
             step={1}
             value={suggestedPrice}
             onValueChange={setSuggestedPrice}
@@ -200,6 +227,7 @@ export default function TicketDetailsModal({
           </Pressable>
         </>
       }
+      tickets={tickets}
     />
   );
 }

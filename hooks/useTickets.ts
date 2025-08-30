@@ -2,73 +2,64 @@ import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import { useEffect, useState } from "react";
 
-type TicketRow = {
+type UnitRow = {
   id: string;
-  current_price: number | null;
-  quantity_available: number | null;
+  ticket_id: string;
   event_id: string;
-  // Supabase nested returns either a single row or array depending on relation config
+  owner_user_id: string;
+  current_price: number | null;
   events:
-    | { name: string | null; datetime: string | null; image_url: string | null }
     | {
-        name: string | null;
-        datetime: string | null;
-        image_url: string | null;
-      }[]
-    | null;
+        name?: string | null;
+        datetime?: string | null;
+        image_url?: string | null;
+      }
+    | Array<{
+        name?: string | null;
+        datetime?: string | null;
+        image_url?: string | null;
+      }>;
 };
 
 export const useTickets = () => {
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [groups, setGroups] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ticketIdMap, setTicketIdMap] = useState<Map<string, string[]>>(new Map());
 
   const fetchTickets = async () => {
     const { data, error } = await supabase
       .from("ticket_units")
-      .select(
-        `
-    event_id,
-    owner_user_id,
-    current_price,
-    events:events (
-      name,
-      datetime,
-      image_url
-    )
-  `
-      )
+      .select(`
+        id,
+        ticket_id,
+        event_id,
+        owner_user_id,
+        current_price,
+        events:events (
+          name,
+          datetime,
+          image_url
+        )
+      `)
       .eq("status", "active");
 
     if (error) {
-      console.error("[useTickets] fetch error:", error);
       setTickets([]);
+      setGroups([]);
       setLoading(false);
+      setTicketIdMap(new Map());
       return;
     }
 
-    type UnitRow = {
-      event_id: string;
-      owner_user_id: string;
-      current_price: number | null;
-      events:
-        | {
-            name?: string | null;
-            datetime?: string | null;
-            image_url?: string | null;
-          }
-        | Array<{
-            name?: string | null;
-            datetime?: string | null;
-            image_url?: string | null;
-          }>;
-    };
-
     const rows = (data ?? []) as UnitRow[];
 
-    // Group units by (event_id + owner_user_id)
+    // קיבוץ לפי ticket_id
     const grouped = new Map<
       string,
       {
+        unit_ids: string[];
+        ticket_id: string;
         event_id: string;
         owner_user_id: string;
         minPrice: number;
@@ -83,11 +74,13 @@ export const useTickets = () => {
 
     for (const u of rows) {
       const ev = Array.isArray(u.events) ? u.events[0] : u.events;
-      const key = `${u.event_id}:${u.owner_user_id}`;
+      const key = u.ticket_id;
       const price = Number(u.current_price ?? 0);
 
       if (!grouped.has(key)) {
         grouped.set(key, {
+          unit_ids: [u.id],
+          ticket_id: u.ticket_id,
           event_id: u.event_id,
           owner_user_id: u.owner_user_id,
           minPrice: price,
@@ -98,47 +91,70 @@ export const useTickets = () => {
         const g = grouped.get(key)!;
         g.minPrice = Math.min(g.minPrice, price);
         g.count += 1;
+        g.unit_ids.push(u.id);
       }
     }
 
-    const formatted: Ticket[] = Array.from(grouped.values()).map(
-      (g): Ticket => ({
-        id: `${g.event_id}:${g.owner_user_id}`,
-        sellerId: g.owner_user_id,
-        eventTitle: g.ev?.name ?? "Unknown",
-        date: g.ev?.datetime
-          ? new Date(g.ev.datetime).toLocaleDateString("en-GB")
+    // מערך tickets: כל יחידת כרטיס בנפרד
+    const tickets: Ticket[] = rows.map((u) => {
+      const ev = Array.isArray(u.events) ? u.events[0] : u.events;
+      return {
+        id: u.id,
+        ticket_id: u.ticket_id,
+        event_id: u.event_id,
+        sellerId: u.owner_user_id,
+        eventTitle: ev?.name ?? "Unknown",
+        date: ev?.datetime
+          ? new Date(ev.datetime).toLocaleDateString("en-GB")
           : "TBD",
-        price: g.minPrice,
-        quantity: g.count,
+        price: Number(u.current_price ?? 0),
+        quantity: 1,
         imageUrl:
-          typeof g.ev?.image_url === "string" &&
-          /^https?:\/\//i.test(g.ev.image_url!)
-            ? (g.ev!.image_url as string)
+          typeof ev?.image_url === "string" &&
+          /^https?:\/\//i.test(ev.image_url!)
+            ? ev.image_url
             : undefined,
-        status: "active" as const, // <- key change
-      })
-    );
-
-    formatted.sort((a, b) => {
-      const da =
-        a.date === "TBD"
-          ? Infinity
-          : new Date(a.date.split("/").reverse().join("-")).getTime();
-      const db =
-        b.date === "TBD"
-          ? Infinity
-          : new Date(b.date.split("/").reverse().join("-")).getTime();
-      return da - db;
+        status: "active" as const,
+      };
     });
 
-    setTickets(formatted);
+    // מערך groups: להצגה במסך הראשי
+    const groups: Ticket[] = Array.from(grouped.values()).map((g) => ({
+      id: g.ticket_id,
+      ticket_id: g.ticket_id,
+      event_id: g.event_id,
+      sellerId: g.owner_user_id,
+      eventTitle: g.ev?.name ?? "Unknown",
+      date: g.ev?.datetime
+        ? new Date(g.ev.datetime).toLocaleDateString("en-GB")
+        : "TBD",
+      price: g.minPrice,
+      quantity: g.count,
+      imageUrl:
+        typeof g.ev?.image_url === "string" &&
+        /^https?:\/\//i.test(g.ev.image_url!)
+          ? g.ev.image_url
+          : undefined,
+      status: "active" as const,
+    }));
+
+    // ticketIdMap: מיפוי ticket_id לכל unit_ids
+    const ticketIdMap = new Map<string, string[]>();
+    for (const g of grouped.values()) {
+      ticketIdMap.set(g.ticket_id, g.unit_ids);
+    }
+
+    // בדיקת לוג: האם המפה נבנתה נכון?
+    console.log("ticketIdMap:", ticketIdMap);
+
+    setTickets(tickets);
+    setGroups(groups);
+    setTicketIdMap(ticketIdMap);
     setLoading(false);
   };
 
   useEffect(() => {
     let active = true;
-
     fetchTickets();
 
     // live refresh on price/qty/status changes
@@ -146,7 +162,7 @@ export const useTickets = () => {
       .channel("tickets-live")
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "tickets" },
+        { event: "*", schema: "public", table: "ticket_units" },
         () => {
           if (active) fetchTickets();
         }
@@ -169,5 +185,6 @@ export const useTickets = () => {
     };
   }, []);
 
-  return { tickets, loading, refetch: fetchTickets };
+  // groups - להצגה במסך הראשי, tickets - לדפדוף במודל
+  return { tickets, groups, loading, refetch: fetchTickets, ticketIdMap };
 };

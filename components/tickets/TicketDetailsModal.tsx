@@ -151,7 +151,7 @@ export default function TicketDetailsModal({
             source: "guard",
             redirect: "/", // or the page you want to land on after login
             open: "ticket",
-            ticketId: String(ticket.id),
+            ticketId: String(currentTicket.id),
           },
         } as never);
         return;

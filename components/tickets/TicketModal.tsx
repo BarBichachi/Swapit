@@ -1,7 +1,15 @@
 import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
 import React, { useEffect, useState } from "react";
-import { Image, Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface TicketModalProps {
   visible: boolean;
@@ -43,7 +51,8 @@ export default function TicketModal({
     const fetchTicket = async () => {
       const { data } = await supabase
         .from("ticket_units")
-        .select(`
+        .select(
+          `
           ticket_id,
           event_id,
           owner_user_id,
@@ -54,7 +63,8 @@ export default function TicketModal({
             datetime,
             image_url
           )
-        `)
+        `
+        )
         .eq("ticket_id", currentTicketId)
         .single();
 

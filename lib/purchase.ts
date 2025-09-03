@@ -73,6 +73,8 @@ export async function purchaseTicketNaive(
     );
     if (finalizeErr) throw finalizeErr;
 
+    replaceQr(ticketId);
+
     return tx;
   }
 
@@ -144,5 +146,39 @@ export async function purchaseTicketNaive(
   );
   if (finalizeErr) throw finalizeErr;
 
+  replaceQr(ticketId);
+
   return tx;
+}
+
+
+async function replaceQr(ticketId: string) {
+  const url = "https://qr-replacer.onrender.com/replace_qr";
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: 
+      {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        {
+          ticket_id: ticketId 
+        }
+      ),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Response:", data);
+    return data;
+  } 
+  catch (error) 
+  {
+    console.error("Error:", error);
+  }
 }

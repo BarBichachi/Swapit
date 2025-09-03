@@ -1,12 +1,12 @@
 import { Ticket } from "@/types/ticket";
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Dimensions,
-  Image,
-  Pressable,
-  Text,
-  View,
+    Animated,
+    Dimensions,
+    Image,
+    Pressable,
+    Text,
+    View,
 } from "react-native";
 
 import placeholder from "@/assets/images/placeholder.png";

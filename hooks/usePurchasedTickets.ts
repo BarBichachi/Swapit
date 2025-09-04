@@ -1,4 +1,3 @@
-// אפשר לשים בקובץ hooks/usePurchasedTickets.ts
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 
@@ -18,7 +17,7 @@ export const usePurchasedTickets = (userId: string | null) => {
         .from("transactions")
         .select(`
           *,
-          ticket_unit:ticket_units (
+          ticket_unit:ticket_id (
             *,
             events:events (
               name,

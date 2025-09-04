@@ -98,7 +98,9 @@ export default function TicketUpdateModal({
       ticketIds={ticketIds}
       currentIndex={currentIndex}
       handlePrev={() => setCurrentIndex((i) => Math.max(i - 1, 0))}
-      handleNext={() => setCurrentIndex((i) => Math.min(i + 1, ticketIds.length - 1))}
+      handleNext={() =>
+        setCurrentIndex((i) => Math.min(i + 1, ticketIds.length - 1))
+      }
       actions={
         <>
           <Slider
@@ -107,6 +109,7 @@ export default function TicketUpdateModal({
               height: 20,
               cursor: "pointer",
               marginTop: 20,
+              alignSelf: "center",
             }}
             minimumValue={1}
             maximumValue={originalPrice ?? currentTicket.price}
@@ -128,6 +131,7 @@ export default function TicketUpdateModal({
               borderRadius: 8,
               width: "60%",
               backgroundColor: "#4FC3F7",
+              alignSelf: "center",
             }}
           >
             <Text
@@ -149,6 +153,7 @@ export default function TicketUpdateModal({
               borderRadius: 8,
               width: "60%",
               backgroundColor: "#FFA726",
+              alignSelf: "center",
             }}
           >
             <Text

@@ -183,9 +183,16 @@ export default function TicketDetailsModal({
       handleNext={handleNext}
       actions={
         <>
-          <Text style={{ marginTop: 20 }}>Set your price:</Text>
+          <Text style={{ marginTop: 20, textAlign: "center" }}>
+            Set your price:
+          </Text>
           <Slider
-            style={{ width: "70%", height: 20, cursor: "pointer" }}
+            style={{
+              width: "70%",
+              height: 20,
+              cursor: "pointer",
+              alignSelf: "center",
+            }}
             minimumValue={0}
             maximumValue={currentTicket.price}
             step={1}
@@ -209,6 +216,7 @@ export default function TicketDetailsModal({
                 width: "45%",
                 backgroundColor: buttonColor,
                 opacity: buying || isMine ? 0.7 : 1,
+                alignSelf: "center",
               },
             ]}
           >

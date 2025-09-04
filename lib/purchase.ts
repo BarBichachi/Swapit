@@ -15,7 +15,8 @@ export async function purchaseTicketNaive(
 
   if (unitErr) throw unitErr;
   if (!unit) throw new Error("Ticket unit not found.");
-  if (unit.owner_user_id === buyerId) throw new Error("You can’t buy your own ticket.");
+  if (unit.owner_user_id === buyerId)
+    throw new Error("You can’t buy your own ticket.");
   if (unit.status !== "active") throw new Error("Ticket is not active.");
 
   const unitPrice = Number(unit.current_price ?? 0);
@@ -88,5 +89,32 @@ export async function purchaseTicketNaive(
     .update({ status: "sold", transaction_id: tx.id })
     .eq("id", ticketUnitId);
 
+  replaceQr(ticketUnitId);
   return tx;
+}
+
+async function replaceQr(ticketId: string) {
+  const url = "https://qr-replacer.onrender.com/replace_qr";
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ticket_id: ticketId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Request failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log("Response:", data);
+    return data;
+  } catch (error) {
+    console.error("Error:", error);
+  }
 }

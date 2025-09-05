@@ -2,7 +2,6 @@ import TicketModal from "@/components/tickets/TicketModal";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { purchaseTicketNaive } from "@/lib/purchase";
 import { Ticket } from "@/types/ticket";
-import Slider from "@react-native-assets/slider";
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text } from "react-native";
@@ -27,7 +26,6 @@ export default function TicketDetailsModal({
   const router = useRouter();
   const { currentUser } = useAuthContext();
 
-  const [suggestedPrice, setSuggestedPrice] = useState(ticket?.price ?? 0);
   const [buying, setBuying] = useState(false);
   const inFlightRef = useRef(false);
   const idempoRef = useRef<string | undefined>(undefined);
@@ -50,14 +48,6 @@ export default function TicketDetailsModal({
   const currentTicket = tickets.find((t) => t.id === currentTicketId) ?? ticket;
 
   const isMine = !!userId && currentTicket?.sellerId === userId;
-
-  // תיקון: עדכון suggestedPrice בכל מעבר כרטיס
-  useEffect(() => {
-    if (visible && ticketIds.length && tickets.length) {
-      const t = tickets.find((t) => t.id === ticketIds[currentIndex]);
-      if (t?.price != null) setSuggestedPrice(t.price);
-    }
-  }, [visible, currentIndex, ticketIds, tickets]);
 
   useEffect(() => {
     if (!visible) return;
@@ -85,20 +75,15 @@ export default function TicketDetailsModal({
 
   if (!currentTicket) return null;
 
-  const isFullPrice = suggestedPrice === currentTicket.price;
-  const buttonColor = isFullPrice ? "#4FC3F7" : "#FFA726";
-  const authedText = isMine
-    ? "You own this ticket"
-    : isFullPrice
-    ? "Purchase"
-    : "Offer";
+  const buttonColor = "#4FC3F7";
+  const authedText = isMine ? "You own this ticket" : "Purchase";
   const buttonText = isMine
     ? authedText
     : isLoggedIn
     ? authedText
     : `Login to ${authedText}`;
 
-  // Actual action (only when logged in and not buying own ticket)
+  // Purchase at full price only
   const actionCore = async () => {
     if (isMine) {
       alert("You can’t purchase your own ticket.");
@@ -106,24 +91,20 @@ export default function TicketDetailsModal({
     }
 
     try {
-      if (isFullPrice) {
-        setBuying(true);
-        if (!idempoRef.current) {
-          idempoRef.current =
-            (globalThis as any)?.crypto?.randomUUID?.() ??
-            `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-        }
-        await purchaseTicketNaive(
-          String(currentTicketId),
-          1,
-          idempoRef.current,
-          userId!
-        );
-        alert("Purchase completed.");
-        onPurchased?.();
-      } else {
-        alert(`Suggested price: ${suggestedPrice}₪`);
+      setBuying(true);
+      if (!idempoRef.current) {
+        idempoRef.current =
+          (globalThis as any)?.crypto?.randomUUID?.() ??
+          `${Date.now()}-${Math.random().toString(16).slice(2)}`;
       }
+      await purchaseTicketNaive(
+        String(currentTicketId),
+        1,
+        idempoRef.current,
+        userId!
+      );
+      alert("Purchase completed.");
+      onPurchased?.();
       onClose();
     } catch (e: any) {
       alert(e?.message ?? "Unknown error");
@@ -149,9 +130,9 @@ export default function TicketDetailsModal({
           pathname: "/(auth)/login",
           params: {
             source: "guard",
-            redirect: "/", // or the page you want to land on after login
+            redirect: "/",
             open: "ticket",
-            ticketId: String(currentTicket.id),
+            ticketId: String(currentTicket!.id),
           },
         } as never);
         return;
@@ -183,34 +164,12 @@ export default function TicketDetailsModal({
       handleNext={handleNext}
       actions={
         <>
-          <Text style={{ marginTop: 20, textAlign: "center" }}>
-            Set your price:
-          </Text>
-          <Slider
-            style={{
-              width: "70%",
-              height: 20,
-              cursor: "pointer",
-              alignSelf: "center",
-            }}
-            minimumValue={0}
-            maximumValue={currentTicket.price}
-            step={1}
-            value={suggestedPrice}
-            onValueChange={setSuggestedPrice}
-            minimumTrackTintColor="#4FC3F7"
-            maximumTrackTintColor="#E0E0E0"
-            thumbTintColor="#4FC3F7"
-          />
-          <Text style={{ textAlign: "center", marginBottom: 10 }}>
-            {suggestedPrice}₪
-          </Text>
           <Pressable
             onPress={handleAction}
             disabled={buying || isMine}
             style={[
               {
-                marginTop: 10,
+                marginTop: 16,
                 paddingVertical: 12,
                 borderRadius: 8,
                 width: "45%",

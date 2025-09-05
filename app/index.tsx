@@ -5,14 +5,9 @@ import TicketDetailsModal from "@/components/tickets/TicketDetailsModal";
 import TicketFilters from "@/components/tickets/TicketFilters";
 import TicketGrid from "@/components/tickets/TicketGrid";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useFilteredTickets } from "@/hooks/useFilteredTickets";
+import { PriceRange, useFilteredTickets } from "@/hooks/useFilteredTickets";
 import { useTickets } from "@/hooks/useTickets";
-import {
-  FILTER_OPTIONS,
-  FilterOption,
-  SORT_OPTIONS,
-  SortOption,
-} from "@/lib/constants/tickets";
+import { SORT_OPTIONS, SortOption } from "@/lib/constants/tickets";
 import { Ticket } from "@/types/ticket";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -22,36 +17,44 @@ import "./styles.css";
 export default function HomePage() {
   const router = useRouter();
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+
+  // Search/sort/filter state
   const [searchTerm, setSearchTerm] = useState("");
   const [sortOption, setSortOption] = useState<SortOption>("none");
-  const [filterOption, setFilterOption] = useState<FilterOption>("all");
   const [sortOpen, setSortOpen] = useState(false);
+
+  // Filter UI (price ranges + date range)
   const [filterOpen, setFilterOpen] = useState(false);
+  const [selectedPriceRanges, setSelectedPriceRanges] = useState<PriceRange[]>([]);
+  const [dateRange, setDateRange] = useState<{ from: string | null; to: string | null }>({
+    from: null,
+    to: null,
+  });
+
+  // Anchors for popovers
   const sortAnchorRef = useRef<any>(null);
   const filterAnchorRef = useRef<any>(null);
+
   const { tickets, groups, refetch, ticketIdMap } = useTickets();
   const { currentUser, loading, refreshProfile } = useAuthContext();
 
-  // סינון ומיון על קבוצות (ולא על tickets בודדים)
+  // Apply filters & sort on groups (not individual ticket units)
   const filteredGroups = useFilteredTickets({
     tickets: groups,
     searchTerm,
-    filterOption,
     sortOption,
+    selectedPriceRanges,
+    dateRange,
   });
 
+  // Support opening a ticket via query string (?open=ticket&ticketId=...)
   const pathname = usePathname();
-  const params = useLocalSearchParams<{
-    open?: string | string[];
-    ticketId?: string | string[];
-  }>();
+  const params = useLocalSearchParams<{ open?: string | string[]; ticketId?: string | string[] }>();
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     const open = Array.isArray(params.open) ? params.open[0] : params.open;
-    const ticketId = Array.isArray(params.ticketId)
-      ? params.ticketId[0]
-      : params.ticketId;
+    const ticketId = Array.isArray(params.ticketId) ? params.ticketId[0] : params.ticketId;
     if (open === "ticket" && ticketId) setPendingTicketId(String(ticketId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.open, params.ticketId]);
@@ -61,24 +64,17 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (!pendingTicketId) return;
-    if (loading) return;
-    if (!groups?.length) return;
-
+    if (!pendingTicketId || loading || !groups?.length) return;
     const t = groups.find((x) => String(x.id) === pendingTicketId);
     if (!t) return;
-
     setSelectedTicket(t);
-
     router.replace({ pathname, params: {} } as never);
     setPendingTicketId(null);
   }, [pendingTicketId, groups, loading, pathname, router]);
 
-  // שליפת מערך ה-ids של הקבוצה שנבחרה
+  // IDs of selected group's ticket units
   const selectedTicketIds =
-    selectedTicket &&
-    ticketIdMap instanceof Map &&
-    typeof selectedTicket.id === "string"
+    selectedTicket && ticketIdMap instanceof Map && typeof selectedTicket.id === "string"
       ? ticketIdMap.get(selectedTicket.id) ?? []
       : [];
 
@@ -86,11 +82,7 @@ export default function HomePage() {
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView
         style={{ padding: 16 }}
-        contentContainerStyle={{
-          zIndex: 0,
-          position: "relative",
-          paddingBottom: 100,
-        }}
+        contentContainerStyle={{ zIndex: 0, position: "relative", paddingBottom: 100 }}
         onScrollBeginDrag={() => {
           setSortOpen(false);
           setFilterOpen(false);
@@ -98,11 +90,7 @@ export default function HomePage() {
       >
         <WelcomeHeader
           userName={
-            loading
-              ? "Guest"
-              : currentUser.isLoggedIn
-              ? currentUser.fullName || "User"
-              : "Guest"
+            loading ? "Guest" : currentUser.isLoggedIn ? currentUser.fullName || "User" : "Guest"
           }
         />
 
@@ -115,13 +103,14 @@ export default function HomePage() {
           setSortOption={setSortOption}
           sortOpen={sortOpen}
           setSortOpen={setSortOpen}
-          filterOption={filterOption}
-          setFilterOption={setFilterOption}
           filterOpen={filterOpen}
           setFilterOpen={setFilterOpen}
+          selectedPriceRanges={selectedPriceRanges}
+          setSelectedPriceRanges={setSelectedPriceRanges}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
         />
 
-        {/* הצגת קבוצות ולא כרטיסים בודדים */}
         <TicketGrid tickets={filteredGroups} onSelect={setSelectedTicket} />
       </ScrollView>
 
@@ -150,20 +139,6 @@ export default function HomePage() {
         }}
         onClose={() => setSortOpen(false)}
         anchorRef={sortAnchorRef}
-        offset={6}
-        matchTriggerWidth
-      />
-
-      <Dropdown
-        visible={filterOpen}
-        options={FILTER_OPTIONS}
-        selected={filterOption}
-        onSelect={(value) => {
-          setFilterOption(value as typeof filterOption);
-          setFilterOpen(false);
-        }}
-        onClose={() => setFilterOpen(false)}
-        anchorRef={filterAnchorRef}
         offset={6}
         matchTriggerWidth
       />

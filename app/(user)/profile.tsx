@@ -104,7 +104,7 @@ export default function ProfileScreen() {
     ticketIdMap,
   } = useTickets();
 
-  // משיכת הכרטיסים שרכשתי (hook חדש)
+  // משיכת הכרטיסים שרכשתי
   const { tickets: purchasedTickets, loading: loadingPurchased } =
     usePurchasedTickets(currentUser.id ?? null);
 
@@ -142,7 +142,7 @@ export default function ProfileScreen() {
     ? ticketIdMap.get(selectedSellingGroup.ticket_id) ?? []
     : [];
 
-  // כרטיסים שרכשתי - בניית אובייקט עם כל השדות הנדרשים ל-TicketModal/TicketCard
+  // כרטיסים שרכשתי - בניית אובייקט עם כל השדות ל-TicketModal/TicketCard
   const purchasedUnits = purchasedTickets
     .map((tx: any) => {
       const unit = tx.ticket_unit ?? tx;
@@ -230,6 +230,7 @@ export default function ProfileScreen() {
             <TicketCard
               key={group.id ?? index}
               {...group}
+              variant="selling"
               onPress={() => {
                 setSelectedSellingGroup(group);
                 setUpdateModalVisible(true);
@@ -271,12 +272,19 @@ export default function ProfileScreen() {
             <TicketCard
               key={group.ticket_id ?? index}
               {...group}
+              variant="purchased"
               onPress={() => {
                 // פתח מודל עם כל היחידות של הקבוצה הזו
-                const groupUnits = purchasedUnits.filter(u => u && u.ticket_id === group.ticket_id);
+                const groupUnits = purchasedUnits.filter(
+                  (u) => u && u.ticket_id === group.ticket_id
+                );
                 setSelectedPurchasedGroup(groupUnits[0]);
                 setPurchasedModalVisible(true);
-                setPurchasedTicketIds(groupUnits.filter((u): u is NonNullable<typeof u> => !!u).map(u => u.id));
+                setPurchasedTicketIds(
+                  groupUnits
+                    .filter((u): u is NonNullable<typeof u> => !!u)
+                    .map((u) => u.id)
+                );
                 setCurrentIndex(0);
               }}
             />
@@ -297,8 +305,10 @@ export default function ProfileScreen() {
         }
         ticketIds={purchasedTicketIds}
         currentIndex={currentIndex}
-        handlePrev={() => setCurrentIndex(i => Math.max(i - 1, 0))}
-        handleNext={() => setCurrentIndex(i => Math.min(i + 1, purchasedTicketIds.length - 1))}
+        handlePrev={() => setCurrentIndex((i) => Math.max(i - 1, 0))}
+        handleNext={() =>
+          setCurrentIndex((i) => Math.min(i + 1, purchasedTicketIds.length - 1))
+        }
       />
     </ScrollView>
   );

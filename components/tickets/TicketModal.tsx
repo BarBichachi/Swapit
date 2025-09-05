@@ -1,8 +1,12 @@
+import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -48,6 +52,10 @@ export default function TicketModal({
   tickets = [],
 }: TicketModalProps) {
   const [localTicket, setLocalTicket] = useState<any>(null);
+  const [canDownload, setCanDownload] = useState(false);
+
+  const { currentUser } = useAuthContext();
+  const userId = currentUser?.id ?? null;
 
   useEffect(() => {
     if (!visible || !ticketIds.length) {
@@ -112,6 +120,7 @@ export default function TicketModal({
             /^https?:\/\//i.test(ev.image_url)
               ? ev.image_url
               : prev?.imageUrl,
+          ticketPdfUrl: (data as any).ticket_pdf_url ?? prev?.ticketPdfUrl,
           status: prev?.status ?? "active",
         }));
       }
@@ -119,6 +128,36 @@ export default function TicketModal({
 
     fetchTicket();
   }, [visible, ticketIds, currentIndex, tickets]);
+
+  // בדיקת בעלות: מוכר או קונה (טבלת transactions)
+  useEffect(() => {
+    const checkOwnership = async () => {
+      if (!visible || !localTicket?.id || !userId) {
+        setCanDownload(false);
+        return;
+      }
+      // אם אני המוכר
+      if (localTicket?.sellerId === userId) {
+        setCanDownload(true);
+        return;
+      }
+      // בדיקה אם רכשתי את היחידה הזו
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id")
+        .eq("buyer_id", userId)
+        .eq("ticket_id", localTicket.id)
+        .maybeSingle();
+
+      if (error) {
+        setCanDownload(false);
+        return;
+      }
+      setCanDownload(!!data);
+    };
+
+    checkOwnership();
+  }, [visible, localTicket?.id, localTicket?.sellerId, userId]);
 
   const { width, height } = useWindowDimensions();
   const isPhone = width < 480;
@@ -130,7 +169,55 @@ export default function TicketModal({
     360,
     Math.floor(height * (isPhone ? 0.35 : 0.5))
   );
-  const contentMaxHeight = Math.floor(height * 0.82);
+  const contentMaxHeight = Math.floor(height * 0.9);
+
+  const sanitize = (s?: string) =>
+    (s || "ticket")
+      .toString()
+      .replace(/[^\w\d\-_.]+/g, "_")
+      .slice(0, 64);
+
+  // הורדה ישירה (Web: קובץ יורד. Native: שמירה לאחסון האפליקציה ושיתוף/שמירה)
+  const handleDownload = async () => {
+    const url: string | undefined = localTicket?.ticketPdfUrl;
+    if (!url) {
+      alert("Ticket file is not available yet.");
+      return;
+    }
+
+    const filename = `${sanitize(localTicket?.eventTitle)}-${localTicket?.id}.pdf`;
+
+    try {
+      if (Platform.OS === "web") {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+      } else {
+        const target = (FileSystem.documentDirectory || FileSystem.cacheDirectory) + filename;
+        const { uri } = await FileSystem.downloadAsync(url, target);
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(uri, {
+            mimeType: "application/pdf",
+            UTI: "com.adobe.pdf",
+            dialogTitle: "Save ticket",
+          });
+        } else {
+          await Linking.openURL(uri);
+        }
+      }
+    } catch (e) {
+      console.error("download error:", e);
+      alert("Failed to download the ticket file.");
+    }
+  };
 
   return (
     <Modal
@@ -229,10 +316,22 @@ export default function TicketModal({
                 <Text style={styles.value}>{localTicket.price}₪</Text>
               </View>
             </View>
+
             {actions}
+          </View>
+
+          {/* פוטר: הורדה משמאל וניווט מימין */}
+          <View style={styles.footer}>
+            <View style={styles.footerLeft}>
+              {canDownload && !!localTicket.ticketPdfUrl && (
+                <TouchableOpacity onPress={handleDownload} style={styles.navButton}>
+                  <Text style={styles.navButtonText}>Download</Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {ticketIds.length > 1 && (
-              <View style={styles.navButtons}>
+              <View style={styles.footerRight}>
                 <TouchableOpacity
                   style={[
                     styles.navButton,
@@ -243,6 +342,12 @@ export default function TicketModal({
                 >
                   <Text style={styles.navButtonText}>Previous</Text>
                 </TouchableOpacity>
+
+                {/* counter */}
+                <Text style={styles.counterText}>
+                  {currentIndex + 1}/{ticketIds.length}
+                </Text>
+
                 <TouchableOpacity
                   style={[
                     styles.navButton,
@@ -321,11 +426,28 @@ const styles = StyleSheet.create({
     color: "#888",
     marginHorizontal: 6,
   },
-  navButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  footer: {
     width: "100%",
     marginTop: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  footerLeft: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  footerRight: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  counterText: {
+    alignSelf: "center",
+    minWidth: 48,
+    textAlign: "center",
+    color: "#666",
+    fontWeight: "600",
   },
   navButton: {
     backgroundColor: "#4FC3F7",

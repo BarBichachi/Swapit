@@ -1,12 +1,12 @@
 import { Ticket } from "@/types/ticket";
 import { useEffect, useRef, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    Image,
-    Pressable,
-    Text,
-    View,
+  Animated,
+  Dimensions,
+  Image,
+  Pressable,
+  Text,
+  View,
 } from "react-native";
 
 import placeholder from "@/assets/images/placeholder.png";
@@ -22,6 +22,7 @@ const cardWidth = (screenWidth - totalGaps) / cardsPerRow;
 
 interface TicketCardProps extends Ticket {
   onPress: () => void;
+  variant?: "selling" | "purchased";
 }
 
 export default function TicketCard({
@@ -31,6 +32,7 @@ export default function TicketCard({
   quantity,
   imageUrl,
   onPress,
+  variant = "selling",
 }: TicketCardProps) {
   const [isPressed, setIsPressed] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -112,7 +114,12 @@ export default function TicketCard({
         <View style={{ paddingBottom: 8, alignItems: "center" }}>
           <Text style={{ fontWeight: "bold", fontSize: 18 }}>{eventTitle}</Text>
           <Text style={{ fontSize: 14 }}>{date}</Text>
-          <Text style={{ fontSize: 14 }}>Starting from {price}₪</Text>
+
+          {/* מחיר מוצג רק כשזה כרטיס למכירה */}
+          {variant !== "purchased" && (
+            <Text style={{ fontSize: 14 }}>Starting from {price}₪</Text>
+          )}
+
           <Text style={{ fontSize: 14, color: "crimson" }}>
             {quantity} tickets
           </Text>

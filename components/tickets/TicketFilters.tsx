@@ -9,31 +9,20 @@ import "../../app/styles.css";
 type AnchorRef = React.RefObject<any>;
 
 interface TicketFiltersProps {
-  // Search
   searchTerm: string;
   setSearchTerm: (term: string) => void;
-
-  // Sort
   sortOption: SortOption;
   setSortOption: React.Dispatch<React.SetStateAction<SortOption>>;
   sortOpen: boolean;
   setSortOpen: React.Dispatch<React.SetStateAction<boolean>>;
-
-  // Filter state
   filterOpen: boolean;
   setFilterOpen: React.Dispatch<React.SetStateAction<boolean>>;
   selectedPriceRanges: PriceRange[];
   setSelectedPriceRanges: (ranges: PriceRange[]) => void;
-
-  // Date range
   dateRange: { from: string | null; to: string | null };
   setDateRange: (r: { from: string | null; to: string | null }) => void;
-
-  // Anchor refs
   sortAnchorRef: AnchorRef;
   filterAnchorRef: AnchorRef;
-
-  // Optional sort options
   sortOptions?: { value: SortOption; label: string }[];
 }
 
@@ -116,7 +105,6 @@ export default function TicketFilters({
     else setDateRange({ from, to });
   };
 
-  // עיגון לחלון הפילטר אל הכפתור (כמו ב-sort)
   const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number }>({
     top: 0,
     left: 0,
@@ -131,14 +119,14 @@ export default function TicketFilters({
       if (!anchor) return;
 
       const rect = anchor.getBoundingClientRect();
-      const margin = 6;
-      const desired = Math.min(440, Math.max(320, rect.width)); // רוחב נוח
+      const margin = 0; 
+      const desired = Math.min(440, Math.max(320, rect.width));
       const vw = window.innerWidth || document.documentElement.clientWidth;
 
-      // השארת שוליים 8px מהמסך
       const maxLeft = vw - desired - 8;
-      const left = Math.min(Math.max(8, rect.left), Math.max(8, maxLeft));
-      const top = rect.bottom + margin;
+      const left = Math.min(Math.max(8, rect.left), Math.max(8, maxLeft)) -10;
+
+      const top = rect.bottom + margin - 50;
 
       setPanelPos({ top, left, width: desired });
     };
@@ -167,7 +155,6 @@ export default function TicketFilters({
     <div className="toolbar">
       <style>
         {`
-          /* מגדיל פונט בלי להגדיל קומפוננטה */
           .tf-date {
             height: 30px;
             padding: 2px 8px;
@@ -202,7 +189,6 @@ export default function TicketFilters({
         `}
       </style>
 
-      {/* Search */}
       <div className="toolbar__search" style={{ width: "100%" } as any}>
         <Input
           placeholder="Search..."
@@ -211,9 +197,7 @@ export default function TicketFilters({
         />
       </div>
 
-      {/* Controls row */}
       <div className="toolbar__controls">
-        {/* Sort trigger */}
         <div ref={sortAnchorRef} className="toolbar__control">
           <Pressable
             onPress={() => setSortOpen((prev) => !prev)}
@@ -244,7 +228,6 @@ export default function TicketFilters({
           </Pressable>
         </div>
 
-        {/* Filter trigger */}
         <div className="toolbar__control">
           <div
             ref={filterAnchorRef}
@@ -279,29 +262,27 @@ export default function TicketFilters({
         </div>
       </div>
 
-      {/* Filter dropdown – ממוקם יחסית לכפתור (עיגון) */}
       {filterOpen && (
         <div
           id="filter-dropdown-panel"
-          role="dialog"
-          aria-label="Filter tickets"
-          className="toolbar__dropdown"
-          style={{
-            position: "fixed",
-            top: panelPos.top,
-            left: panelPos.left,
-            width: panelPos.width,
-            background: "#fff",
-            borderRadius: 10,
-            boxShadow: "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
-            padding: 10,
-            zIndex: 2000,
-            maxHeight: "70vh",
-            overflowY: "auto",
-            overflowX: "hidden",
-          }}
+            role="dialog"
+            aria-label="Filter tickets"
+            className="toolbar__dropdown"
+            style={{
+              position: "fixed",
+              top: panelPos.top,
+              left: panelPos.left,
+              width: panelPos.width,
+              background: "#fff",
+              borderRadius: 10,
+              boxShadow: "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+              padding: 10,
+              zIndex: 2000,
+              maxHeight: "70vh",
+              overflowY: "auto",
+              overflowX: "hidden",
+            }}
         >
-          {/* Price ranges */}
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Price ranges</div>
           <div
             style={{
@@ -335,7 +316,6 @@ export default function TicketFilters({
             ))}
           </div>
 
-          {/* Date range */}
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Date range</div>
           <div
             style={{
@@ -375,7 +355,6 @@ export default function TicketFilters({
             </button>
           </div>
 
-          {/* Actions */}
           <div
             style={{
               display: "flex",

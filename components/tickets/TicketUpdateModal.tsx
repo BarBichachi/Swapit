@@ -22,10 +22,8 @@ export default function TicketUpdateModal({
   tickets = [],
   onUpdated,
 }: TicketUpdateModalProps) {
-  // דפדוף בין כרטיסים
   const [currentIndex, setCurrentIndex] = useState(0);
 
-  // הכרטיס הנוכחי לפי הדפדוף
   const currentTicketId = ticketIds[currentIndex];
   const currentTicket = tickets.find((t) => t.id === currentTicketId);
 
@@ -39,7 +37,6 @@ export default function TicketUpdateModal({
     }
   }, [visible, ticket?.id, ticketIds]);
 
-  // עדכון הסליידר והמחיר בכל מעבר כרטיס
   useEffect(() => {
     if (visible && currentTicket) {
       setNewPrice(currentTicket.price);
@@ -56,7 +53,6 @@ export default function TicketUpdateModal({
     }
   }, [visible, currentIndex, currentTicket?.id, currentTicket?.price]);
 
-  // עדכון מחיר בטבלת ticket_units
   const handleUpdatePrice = async () => {
     const { error } = await supabase
       .from("ticket_units")
@@ -72,7 +68,6 @@ export default function TicketUpdateModal({
     }
   };
 
-  // הסרת כרטיס מהמחירה (עדכון סטטוס ל-removed)
   const handleRemoveFromSale = async () => {
     const { error } = await supabase
       .from("ticket_units")

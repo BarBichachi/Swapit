@@ -115,7 +115,6 @@ export default function TicketCard({
           <Text style={{ fontWeight: "bold", fontSize: 18 }}>{eventTitle}</Text>
           <Text style={{ fontSize: 14 }}>{date}</Text>
 
-          {/* מחיר מוצג רק כשזה כרטיס למכירה */}
           {variant !== "purchased" && (
             <Text style={{ fontSize: 14 }}>Starting from {price}₪</Text>
           )}

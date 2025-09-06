@@ -15,7 +15,6 @@ export type DateRange = {
   to?: string | Date | null;
 };
 
-// ממיר תאריך למספר מ״ש, תומך ב-ISO וב-DD/MM/YYYY[, HH:MM]
 const toTs = (d: any): number => {
   if (!d && d !== 0) return 0;
   if (d instanceof Date) return d.getTime() || 0;
@@ -24,13 +23,11 @@ const toTs = (d: any): number => {
     const s = d.trim();
     if (!s) return 0;
 
-    // ISO
     if (/\d{4}-\d{2}-\d{2}/.test(s) || s.includes("T") || s.includes("Z")) {
       const t = Date.parse(s);
       return isNaN(t) ? 0 : t;
     }
 
-    // DD/MM/YYYY[, HH:MM] או DD.MM.YYYY
     const m = s.match(
       /^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})(?:[,\s]+(\d{1,2}):(\d{2}))?$/
     );
@@ -60,7 +57,6 @@ const toEndOfDayTs = (d: any): number => {
   const s = typeof d === "string" ? d.trim() : null;
   const base = toTs(d);
   if (!base) return 0;
-  // אם זו מחרוזת תאריך בלי שעה – החשב עד סוף היום
   if (typeof d === "string") {
     if (/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return base + 86399999;
     if (/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4}$/.test(s || "")) return base + 86399999;
@@ -78,7 +74,6 @@ const toEndOfDayTs = (d: any): number => {
   return base;
 };
 
-// מוצא את התאריך הרלוונטי בכל אובייקט כרטיס/קבוצה
 const getTicketTs = (t: any): number => {
   const candidates = [
     t?.datetime,
@@ -140,21 +135,18 @@ export function useFilteredTickets({
     const list0: any[] = tickets ?? [];
     const term = (searchTerm || "").trim().toLowerCase();
 
-    // חיפוש לפי כותרת
     let list = term
       ? list0.filter((t: any) =>
           String(t.eventTitle ?? "").toLowerCase().includes(term)
         )
       : list0;
 
-    // טווחי מחיר
     if (selectedPriceRanges?.length) {
       list = list.filter((t: any) =>
         inSelectedPriceRanges(Number(t.price ?? 0), selectedPriceRanges)
       );
     }
 
-    // טווח תאריכים
     const fromTs = dateRange?.from ? toTs(dateRange.from) : 0;
     const toTsVal = dateRange?.to ? toEndOfDayTs(dateRange.to) : Number.POSITIVE_INFINITY;
     if (fromTs || isFinite(toTsVal)) {

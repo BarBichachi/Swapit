@@ -28,7 +28,6 @@ interface TicketModalProps {
   tickets?: Ticket[];
 }
 
-// תאריך בפורמט DD/MM/YYYY, שעה בלי שניות
 function formatDateTime(dateStr?: string) {
   if (!dateStr) return "TBD";
   const d = new Date(dateStr);
@@ -65,7 +64,6 @@ export default function TicketModal({
     const currentTicketId = ticketIds[currentIndex];
     if (!currentTicketId) return;
 
-    // אם יש כרטיס במערך – נשתמש בו כבסיס, אבל תמיד נטען מהשרת להשלמת הפרטים
     const base = tickets.find((t) => t.id === currentTicketId);
     if (base) setLocalTicket((prev: any) => prev ?? base);
 
@@ -93,7 +91,6 @@ export default function TicketModal({
       }
 
       if (data) {
-        // הגנה: לפעמים event חוזר כמערך
         const evRaw = (data as any).event;
         const ev = Array.isArray(evRaw) ? evRaw[0] : evRaw || {};
 
@@ -129,19 +126,16 @@ export default function TicketModal({
     fetchTicket();
   }, [visible, ticketIds, currentIndex, tickets]);
 
-  // בדיקת בעלות: מוכר או קונה (טבלת transactions)
   useEffect(() => {
     const checkOwnership = async () => {
       if (!visible || !localTicket?.id || !userId) {
         setCanDownload(false);
         return;
       }
-      // אם אני המוכר
       if (localTicket?.sellerId === userId) {
         setCanDownload(true);
         return;
       }
-      // בדיקה אם רכשתי את היחידה הזו
       const { data, error } = await supabase
         .from("transactions")
         .select("id")
@@ -177,7 +171,6 @@ export default function TicketModal({
       .replace(/[^\w\d\-_.]+/g, "_")
       .slice(0, 64);
 
-  // הורדה ישירה (Web: קובץ יורד. Native: שמירה לאחסון האפליקציה ושיתוף/שמירה)
   const handleDownload = async () => {
     const url: string | undefined = localTicket?.ticketPdfUrl;
     if (!url) {
@@ -320,7 +313,6 @@ export default function TicketModal({
             {actions}
           </View>
 
-          {/* פוטר: הורדה משמאל וניווט מימין */}
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
               {canDownload && !!localTicket.ticketPdfUrl && (

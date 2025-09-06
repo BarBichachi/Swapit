@@ -99,7 +99,6 @@ export const useTickets = () => {
       }
     }
 
-    // מערך tickets: כל יחידת כרטיס בנפרד
     const tickets: Ticket[] = rows.map((u) => {
       const ev = Array.isArray(u.events) ? u.events[0] : u.events;
       return {
@@ -122,7 +121,6 @@ export const useTickets = () => {
       };
     });
 
-    // מערך groups: להצגה במסך הראשי
     const groups: Ticket[] = Array.from(grouped.values()).map((g) => ({
       id: g.ticket_id,
       ticket_id: g.ticket_id,
@@ -142,7 +140,6 @@ export const useTickets = () => {
       status: "active" as const,
     }));
 
-    // ticketIdMap: מיפוי ticket_id לכל unit_ids
     const ticketIdMap = new Map<string, string[]>();
     for (const g of grouped.values()) {
       ticketIdMap.set(g.ticket_id, g.unit_ids);
@@ -186,6 +183,5 @@ export const useTickets = () => {
     };
   }, []);
 
-  // groups - להצגה במסך הראשי, tickets - לדפדוף במודל
   return { tickets, groups, loading, refetch: fetchTickets, ticketIdMap };
 };

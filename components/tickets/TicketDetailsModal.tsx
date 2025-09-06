@@ -33,7 +33,6 @@ export default function TicketDetailsModal({
   const userId = currentUser.id ?? null;
   const isLoggedIn = currentUser.isLoggedIn;
 
-  // דפדוף בין כרטיסים בקבוצה
   const [currentIndex, setCurrentIndex] = useState(0);
   useEffect(() => {
     if (!visible || !ticket || !ticketIds.length) {

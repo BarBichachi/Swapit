@@ -20,7 +20,6 @@ type CurrentUser = {
   fullName: string; // derived: "First Last" or "" when not ready
   balance: number; // derived: 0 when unknown
 
-  city: string | null;
   birth_year: number | null;
   gender: string | null;
 
@@ -71,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase
       .from("profiles")
       .select(
-        "id, first_name, last_name, email, phone, balance, city, birth_year, gender"
+        "id, first_name, last_name, email, phone, balance, birth_year, gender"
       )
       .eq("id", userId)
       .single();
@@ -163,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .update(patch)
       .eq("id", authUser.id)
       .select(
-        "id, first_name, last_name, email, phone, balance, city, birth_year, gender"
+        "id, first_name, last_name, email, phone, balance, birth_year, gender"
       )
       .single();
 
@@ -194,7 +193,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .trim();
 
     const balance = Number(profile?.balance ?? 0);
-    const city = profile?.city ?? null;
     const birth_year = (profile?.birth_year as number | null) ?? null;
     const gender = profile?.gender ?? null;
 
@@ -208,7 +206,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       last_name,
       fullName,
       balance,
-      city,
       birth_year,
       gender,
       isLoggedIn,

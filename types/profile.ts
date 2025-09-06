@@ -5,7 +5,6 @@ export type Profile = {
   email?: string | null;
   phone?: string | null;
   balance?: number | null;
-  city?: string | null;
   birth_year?: number | null;
   gender?: string | null;
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import Input from "@/components/global/Input";
-import { birthYears, cities, genders } from "@/lib/constants/registration";
+import { birthYears, genders } from "@/lib/constants/registration";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -14,7 +14,6 @@ export default function SignupPage() {
     firstName: "",
     lastName: "",
     phone: "",
-    city: "",
     birthYear: "",
     gender: "",
   });
@@ -43,7 +42,6 @@ export default function SignupPage() {
     setLoading(true);
 
     const newEmptyFields = new Set<string>();
-    const { email, phone, ...rest } = form;
 
     // 1. Check required fields
     for (const [key, value] of Object.entries(form)) {
@@ -54,7 +52,7 @@ export default function SignupPage() {
 
     // 2. Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (email && !emailRegex.test(email)) {
+    if (form.email && !emailRegex.test(form.email)) {
       setError("Invalid email format");
       setEmptyFields((prev) => new Set(prev).add("email"));
       setLoading(false);
@@ -63,7 +61,7 @@ export default function SignupPage() {
 
     // 3. Validate phone format
     const phoneRegex = /^05\d{8}$/;
-    if (phone && !phoneRegex.test(phone)) {
+    if (form.phone && !phoneRegex.test(form.phone)) {
       setError("Phone must start with 05 and be 10 digits");
       setEmptyFields((prev) => new Set(prev).add("phone"));
       setLoading(false);
@@ -78,41 +76,55 @@ export default function SignupPage() {
       return;
     }
 
-    // 5. Submit
     setEmptyFields(new Set());
+    
+    try {
+      // 5. Sign up
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: form.email,
+        password: form.password,
+      });
+      if (signUpError || !signUpData.user) throw signUpError || new Error("Signup failed");
 
-    const { email: eMail, password, ...profile } = form;
-    const { data, error: signUpError } = await supabase.auth.signUp({
-      email: eMail,
-      password,
-    });
+      // 6. Sign in immediately to get session
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: form.email,
+        password: form.password,
+      });
+      if (signInError) throw signInError;
 
-    if (signUpError || !data.user) {
-      setError(signUpError?.message || "Signup failed.");
+      // 7. Insert profile
+      console.log("Insert profile payload:", {
+        id: signUpData.user.id,
+        email: form.email,
+        first_name: form.firstName,
+        last_name: form.lastName,
+        phone: form.phone,
+        birth_year: parseInt(form.birthYear),
+        gender: form.gender,
+      });
+      const { error: profileError } = await supabase.from("profiles").insert([
+        {
+          id: signUpData.user.id,
+          email: form.email,
+          first_name: form.firstName,
+          last_name: form.lastName,
+          phone: form.phone,
+          birth_year: parseInt(form.birthYear),
+          gender: form.gender,
+          balance: 500
+        },
+      ]).select();
+      if (profileError) throw profileError;
+
+      // 8. Redirect to home page:
+      router.replace("/");
+
+    } catch (err: any) {
+      console.error("Signup error:", err);
+      setError(err.message || "Signup failed.");
       setLoading(false);
-      return;
     }
-
-    const { error: profileError } = await supabase.from("profiles").insert([
-      {
-        id: data.user.id,
-        email: email,
-        first_name: profile.firstName,
-        last_name: profile.lastName,
-        phone: profile.phone,
-        city: profile.city,
-        birth_year: parseInt(profile.birthYear),
-        gender: profile.gender,
-      },
-    ]);
-
-    if (profileError) {
-      setError(profileError.message);
-      setLoading(false);
-      return;
-    }
-
-    router.replace("/");
   };
   return (
     <div className="form-container">
@@ -192,22 +204,6 @@ export default function SignupPage() {
                 ? genders
                     .map((g) => ({ label: g.label, value: g.value }))
                     .find((g) => g.value === form.gender)
-                : null
-            }
-            isSearchable
-          />
-        </div>
-
-        <div className="form-group">
-          <Select
-            options={cities.map((city) => ({ label: city, value: city }))}
-            placeholder="Select a City"
-            onChange={(selectedOption) =>
-              setForm({ ...form, city: selectedOption?.value || "" })
-            }
-            value={
-              cities.includes(form.city)
-                ? { label: form.city, value: form.city }
                 : null
             }
             isSearchable

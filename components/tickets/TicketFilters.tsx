@@ -369,31 +369,20 @@ export default function TicketFilters({
                   marginBottom: 4,
                 }}
               >
-                <div
-                  style={{
-                    width: 44,
-                    height: 4,
-                    borderRadius: 2,
-                    background: "#d0d0d0",
-                    position: "absolute",
-                    top: -6,
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                  }}
-                />
                 <strong style={{ fontSize: 16 }}>Filters</strong>
                 <button
                   onClick={() => setFilterOpen(false)}
                   aria-label="Close"
                   style={{
                     position: "absolute",
-                    right: -4,
+                    right: "-45%",
                     top: -8,
                     background: "transparent",
                     border: "none",
                     fontSize: 28,
                     lineHeight: "28px",
                     cursor: "pointer",
+                    color: "rgba(0, 0, 0, 1)",
                   }}
                 >
                   ×

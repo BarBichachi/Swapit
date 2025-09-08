@@ -24,6 +24,25 @@ const DEFAULTS = (() => {
   };
 })();
 
+// ----- Reset templates -----
+const INITIAL_EVENT_FORM: EventForm = {
+  name: "",
+  venue: "",
+  city: "",
+  datetime: "",
+  imageFile: undefined, // keep undefined for correct TS type
+};
+
+const INITIAL_UNIT: UnitForm = {
+  is_seated: false,
+  area_type: "",
+  section: "",
+  row: "",
+  seat_number: "",
+  original_price: "",
+  file: undefined,
+};
+
 export default function AddTicketPage() {
   // ============================================================
   // ROUTER + AUTH STATE (declare hooks FIRST, no early returns)
@@ -41,29 +60,13 @@ export default function AddTicketPage() {
   // ============================================================
   // EVENT FORM STATE
   // ============================================================
-  const [eventForm, setEventForm] = useState<EventForm>({
-    name: "",
-    venue: "",
-    city: "",
-    datetime: "",
-    imageFile: undefined,
-  });
+  const [eventForm, setEventForm] = useState<EventForm>(INITIAL_EVENT_FORM);
 
   // ============================================================
   // TICKET UNITS STATE (quantity + per-unit forms)
   // ============================================================
   const [quantity, setQuantity] = useState<number>(1);
-  const [units, setUnits] = useState<UnitForm[]>([
-    {
-      is_seated: false,
-      area_type: "",
-      section: "",
-      row: "",
-      seat_number: "",
-      original_price: "",
-      file: undefined,
-    },
-  ]);
+  const [units, setUnits] = useState<UnitForm[]>([{ ...INITIAL_UNIT }]);
 
   // ============================================================
   // VALIDATION + UI STATE
@@ -100,15 +103,7 @@ export default function AddTicketPage() {
       const next = [...prev];
       if (q > prev.length) {
         for (let i = prev.length; i < q; i++) {
-          next.push({
-            is_seated: false,
-            area_type: "",
-            section: "",
-            row: "",
-            seat_number: "",
-            original_price: "",
-            file: undefined,
-          });
+          next.push({ ...INITIAL_UNIT });
         }
       } else if (q < prev.length) {
         next.length = q;
@@ -331,6 +326,12 @@ export default function AddTicketPage() {
         .from("ticket_units")
         .insert(payload);
       if (insUnitsErr) throw insUnitsErr;
+
+      setEventForm(INITIAL_EVENT_FORM);
+      setQuantity(1);
+      setUnits([{ ...INITIAL_UNIT }]);
+      setEmptyFields(new Set());
+      setError("");
 
       router.push({ pathname: "/", params: { refresh: "tickets" } } as any);
     } catch (err: any) {

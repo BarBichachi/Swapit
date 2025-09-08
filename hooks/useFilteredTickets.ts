@@ -59,7 +59,8 @@ const toEndOfDayTs = (d: any): number => {
   if (!base) return 0;
   if (typeof d === "string") {
     if (/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return base + 86399999;
-    if (/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4}$/.test(s || "")) return base + 86399999;
+    if (/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4}$/.test(s || ""))
+      return base + 86399999;
   }
   if (d instanceof Date) {
     if (
@@ -89,7 +90,10 @@ const getTicketTs = (t: any): number => {
   return 0;
 };
 
-const inSelectedPriceRanges = (price: number, ranges: PriceRange[]): boolean => {
+const inSelectedPriceRanges = (
+  price: number,
+  ranges: PriceRange[]
+): boolean => {
   if (!ranges?.length) return true;
   if (price == null || isNaN(price)) return false;
 
@@ -137,7 +141,9 @@ export function useFilteredTickets({
 
     let list = term
       ? list0.filter((t: any) =>
-          String(t.eventTitle ?? "").toLowerCase().includes(term)
+          String(t.eventTitle ?? "")
+            .toLowerCase()
+            .includes(term)
         )
       : list0;
 
@@ -147,8 +153,30 @@ export function useFilteredTickets({
       );
     }
 
-    const fromTs = dateRange?.from ? toTs(dateRange.from) : 0;
-    const toTsVal = dateRange?.to ? toEndOfDayTs(dateRange.to) : Number.POSITIVE_INFINITY;
+    let fromTs = dateRange?.from ? toTs(dateRange.from) : 0;
+    // If user chose a pure date (YYYY-MM-DD) or a Date at midnight, normalize to start-of-day to avoid timezone drift.
+    if (dateRange?.from) {
+      if (
+        typeof dateRange.from === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(dateRange.from.trim())
+      ) {
+        const [y, m, d] = dateRange.from.split("-").map(Number);
+        fromTs = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+      } else if (dateRange.from instanceof Date) {
+        const dt = dateRange.from;
+        if (
+          dt.getHours() === 0 &&
+          dt.getMinutes() === 0 &&
+          dt.getSeconds() === 0 &&
+          dt.getMilliseconds() === 0
+        ) {
+          fromTs = dt.getTime();
+        }
+      }
+    }
+    const toTsVal = dateRange?.to
+      ? toEndOfDayTs(dateRange.to)
+      : Number.POSITIVE_INFINITY;
     if (fromTs || isFinite(toTsVal)) {
       list = list.filter((t: any) => {
         const ts = getTicketTs(t);
@@ -179,5 +207,12 @@ export function useFilteredTickets({
         break;
     }
     return arr;
-  }, [tickets, searchTerm, sortOption, selectedPriceRanges, dateRange?.from, dateRange?.to]);
+  }, [
+    tickets,
+    searchTerm,
+    sortOption,
+    selectedPriceRanges,
+    dateRange?.from,
+    dateRange?.to,
+  ]);
 }

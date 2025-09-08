@@ -9,6 +9,7 @@ import { PriceRange, useFilteredTickets } from "@/hooks/useFilteredTickets";
 import { useTickets } from "@/hooks/useTickets";
 import { SORT_OPTIONS, SortOption } from "@/lib/constants/tickets";
 import { Ticket } from "@/types/ticket";
+import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { ScrollView, View } from "react-native";
@@ -60,13 +61,15 @@ export default function HomePage() {
     refresh?: string | string[];
   }>();
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
-
   useEffect(() => {
-    if (params.refresh === "tickets") {
-      refetch(); // refresh tickets list
-      router.replace("/");
-    }
-  }, [params.refresh, refetch, router]);
+    const open = Array.isArray(params.open) ? params.open[0] : params.open;
+    const ticketId = Array.isArray(params.ticketId)
+      ? params.ticketId[0]
+      : params.ticketId;
+    if (open === "ticket" && ticketId) setPendingTicketId(String(ticketId));
+  }, [params.open, params.ticketId]);
+
+  const isFocused = useIsFocused();
 
   useEffect(() => {
     const open = Array.isArray(params.open) ? params.open[0] : params.open;
@@ -77,18 +80,41 @@ export default function HomePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.open, params.ticketId]);
 
-  useEffect(() => {
-    return () => setPendingTicketId(null);
-  }, []);
+  // Try once more if not found the first time
+  const triedRefetchRef = useRef(false);
 
   useEffect(() => {
-    if (!pendingTicketId || loading || !groups?.length) return;
-    const t = groups.find((x) => String(x.id) === pendingTicketId);
-    if (!t) return;
-    setSelectedTicket(t);
-    router.replace({ pathname, params: {} } as never);
-    setPendingTicketId(null);
-  }, [pendingTicketId, groups, loading, pathname, router]);
+    if (!isFocused) return; // + wait until Home is focused (after returning from login)
+    if (!pendingTicketId || loading) return;
+    if (!groups?.length) return;
+
+    // 1) If the param is a GROUP id, open directly
+    let group = groups.find((g) => String(g.id) === String(pendingTicketId));
+
+    // 2) If it’s a UNIT id, map it -> group via ticketIdMap
+    if (!group && ticketIdMap instanceof Map) {
+      for (const [groupId, unitIds] of ticketIdMap.entries()) {
+        if (unitIds.some((u) => String(u) === String(pendingTicketId))) {
+          group = groups.find((g) => String(g.id) === String(groupId));
+          if (group) break;
+        }
+      }
+    }
+
+    if (group) {
+      setSelectedTicket(group);
+      router.replace("/"); // clear ?open=...&ticketId=...
+      setPendingTicketId(null);
+    } else {
+      // not found yet — try one refetch then clear
+      refetch()
+        .catch(() => {})
+        .finally(() => {
+          router.replace("/");
+          setPendingTicketId(null);
+        });
+    }
+  }, [pendingTicketId, loading, groups, ticketIdMap, refetch, router]);
 
   // IDs of selected group's ticket units
   const selectedTicketIds =

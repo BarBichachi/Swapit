@@ -10,9 +10,6 @@ import {
   useState,
 } from "react";
 
-const TS = () => new Date().toISOString().split("T")[1].replace("Z", "");
-const d = (...args: any[]) => console.log(`[auth ${TS()}]`, ...args);
-
 type CurrentUser = {
   // unified, safe-to-use fields (always present with sensible defaults)
   id: string | null;
@@ -68,9 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     if (!userId) return;
-    d("fetchProfile:start", { userId });
 
-    // `maybeSingle` => returns { data: null, error: null } when 0 rows (no throw)
     const { data, error } = await supabase
       .from("profiles")
       .select(
@@ -82,22 +77,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!mountedRef.current) return;
 
     if (error) {
-      d("fetchProfile:error", { msg: error.message });
       setProfile(null);
       return;
     }
 
     if (!data) {
-      d("fetchProfile:none", { userId }); // no row yet; keep UI using metadata/email fallback
       setProfile(null);
       return;
     }
 
-    d("fetchProfile:ok", {
-      id: data.id,
-      first: data.first_name,
-      last: data.last_name,
-    });
     setProfile(data as Profile);
   };
 
@@ -110,19 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]);
 
   const safeFetchProfile = async (uid: string) => {
-    try {
-      await withTimeout(fetchProfile(uid), 1500);
-    } catch (e) {
-      d("fetchProfile:timeout-or-error", { uid, err: String(e) });
-      // retry once shortly (token/trigger propagation, hidden-tab throttling, etc.)
-      setTimeout(() => {
-        fetchProfile(uid)
-          .then(() => d("fetchProfile:retry:ok", { uid }))
-          .catch((err) =>
-            d("fetchProfile:retry:error", { uid, err: String(err) })
-          );
-      }, 200);
-    }
+    await withTimeout(fetchProfile(uid), 1500);
   };
 
   // bootstrap once
@@ -131,8 +107,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // One path to rule them all
     const { data: sub } = supabase.auth.onAuthStateChange((evt, session) => {
-      d("AUTH_EVT", { evt, uid: session?.user?.id ?? null });
-
       const nextUser = session?.user ?? null;
       setAuthUser(nextUser);
 
@@ -185,17 +159,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithPassword = async (email: string, password: string) => {
-    d("LOGIN:start", { email });
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     if (error) {
-      d("LOGIN:error", error.message);
       return { error: error ?? undefined };
     }
-    d("LOGIN:ok", { uid: data?.user?.id ?? null });
-
     if (data?.user?.id) {
       setAuthUser(data.user);
       await fetchProfile(data.user.id);
@@ -222,14 +192,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = (_timeoutMs?: number): Promise<void> => {
     // Fire-and-forget: never await here
-    d("LOGOUT:start");
     supabase.auth.signOut({ scope: "local" }).catch(() => {});
     // Flip UI now
     setAuthUser(null);
     setProfile(null);
     // Best-effort server revoke, also fire-and-forget
     supabase.auth.signOut().catch(() => {});
-    d("LOGOUT:localCLEARED+revokeFired");
     // Resolve immediately
     return Promise.resolve();
   };
@@ -380,15 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         : null;
 
     const isLoggedIn = !!authUser?.id;
-    d("currentUser", {
-      isLoggedIn,
-      id,
-      fullName,
-      nameSource,
-      haveProfile: !!profile?.id,
-      metaFirst: (meta as any).first_name ?? (meta as any).firstName ?? null,
-      profFirst: profile?.first_name ?? null,
-    });
+
     return {
       id,
       email,

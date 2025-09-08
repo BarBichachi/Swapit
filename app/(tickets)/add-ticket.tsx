@@ -1,24 +1,5 @@
 "use client";
 
-/**
- * AddTicketPage (Demo)
- * --------------------
- * Styling:
- * - Uses the same classes your Login page uses from styles.css:
- *   .form-container, .form-title, .form-group, .form-label,
- *   .form-input, .form-input-error, .form-button, .form-error
- *
- * Behavior:
- * - Auth guard: redirects guests to /login?redirect=/add-ticket
- * - Create Event (user-provided) with optional image upload to "event-images"
- * - Create Listing (tickets)
- * - Create N Ticket Units (quantity-driven), each with its own PDF uploaded to "ticket-pdfs"
- *
- * Important:
- * - All hooks are declared before any conditional return to avoid
- *   "Rendered more hooks than during the previous render".
- */
-
 import { supabase } from "@/lib/supabase";
 import type { EventForm, UnitForm } from "@/types/forms";
 import { useRouter } from "expo-router";

@@ -6,6 +6,22 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView } from "react-native";
 
+// Resolve defaults once per runtime
+const DEFAULTS = (() => {
+  const eventImg = supabase.storage
+    .from("event-images")
+    .getPublicUrl("defaults/default-event.png").data.publicUrl;
+
+  const ticketPdf = supabase.storage
+    .from("ticket-pdfs")
+    .getPublicUrl("defaults/default-ticket.pdf").data.publicUrl;
+
+  return {
+    EVENT_IMAGE_URL: eventImg,
+    TICKET_PDF_URL: ticketPdf,
+  };
+})();
+
 export default function AddTicketPage() {
   // ============================================================
   // ROUTER + AUTH STATE (declare hooks FIRST, no early returns)
@@ -128,10 +144,6 @@ export default function AddTicketPage() {
       msg ||= "Event: date & time are required.";
       markEmpty("event_datetime");
     }
-    if (!eventForm.imageFile) {
-      msg ||= "Event: image is required.";
-      markEmpty("event_image");
-    }
 
     // Units
     const seenSeats = new Set<string>();
@@ -166,10 +178,6 @@ export default function AddTicketPage() {
       if (!u.original_price || isNaN(Number(u.original_price))) {
         msg ||= `Ticket #${idx}: original price must be a number.`;
         markEmpty(`unit_${i}_op`);
-      }
-      if (!u.file) {
-        msg ||= `Ticket #${idx}: please attach the ticket PDF.`;
-        markEmpty(`unit_${i}_pdf`);
       }
     });
 
@@ -246,6 +254,13 @@ export default function AddTicketPage() {
           .update({ image_url })
           .eq("id", eventId);
         if (patchErr) throw patchErr;
+      } else {
+        // default placeholder
+        const { error: patchDefaultErr } = await supabase
+          .from("events")
+          .update({ image_url: DEFAULTS.EVENT_IMAGE_URL })
+          .eq("id", eventId);
+        if (patchDefaultErr) throw patchDefaultErr;
       }
 
       // 4) Insert Listing (tickets)
@@ -264,18 +279,24 @@ export default function AddTicketPage() {
       for (let i = 0; i < units.length; i++) {
         const u = units[i];
 
-        // PDF upload
-        const ext = (u.file?.name?.split(".").pop() || "pdf").toLowerCase();
-        const pdfPath = `${uid}/${eventId}/${ticketId}/${now}-${i + 1}.${ext}`;
-        const { error: upPdfErr } = await supabase.storage
-          .from("ticket-pdfs")
-          .upload(pdfPath, u.file!, { upsert: false });
-        if (upPdfErr) throw upPdfErr;
+        let ticket_pdf_url = DEFAULTS.TICKET_PDF_URL; // default if none provided
 
-        const { data: pubPdf } = supabase.storage
-          .from("ticket-pdfs")
-          .getPublicUrl(pdfPath);
-        const ticket_pdf_url = pubPdf.publicUrl;
+        // PDF upload
+        if (u.file) {
+          const ext = (u.file.name?.split(".").pop() || "pdf").toLowerCase();
+          const pdfPath = `${uid}/${eventId}/${ticketId}/${now}-${
+            i + 1
+          }.${ext}`;
+          const { error: upPdfErr } = await supabase.storage
+            .from("ticket-pdfs")
+            .upload(pdfPath, u.file, { upsert: false });
+          if (upPdfErr) throw upPdfErr;
+
+          const { data: pubPdf } = supabase.storage
+            .from("ticket-pdfs")
+            .getPublicUrl(pdfPath);
+          ticket_pdf_url = pubPdf.publicUrl;
+        }
 
         // Build unit row
         payload.push({
@@ -404,7 +425,6 @@ export default function AddTicketPage() {
               onChange={(e) =>
                 setEventForm({ ...eventForm, imageFile: e.target.files?.[0] })
               }
-              required
             />
           </div>
 

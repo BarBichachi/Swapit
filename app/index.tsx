@@ -12,7 +12,7 @@ import { Ticket } from "@/types/ticket";
 import { useIsFocused } from "@react-navigation/native";
 import { useLocalSearchParams, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { ScrollView, View } from "react-native";
+import { ScrollView, View, useWindowDimensions } from "react-native";
 import "./styles.css";
 
 export default function HomePage() {
@@ -124,6 +124,9 @@ export default function HomePage() {
       ? ticketIdMap.get(selectedTicket.id) ?? []
       : [];
 
+  const { width } = useWindowDimensions();
+  const isMobile = width < 640;
+
   return (
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView
@@ -168,7 +171,10 @@ export default function HomePage() {
         <TicketGrid tickets={filteredGroups} onSelect={setSelectedTicket} />
       </ScrollView>
 
-      <FloatingAddButton onPress={() => router.push("/(tickets)/add-ticket")} />
+      <FloatingAddButton
+        onPress={() => router.push("/(tickets)/add-ticket")}
+        hide={isMobile && filterOpen}
+      />
 
       <TicketDetailsModal
         visible={!!selectedTicket}

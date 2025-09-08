@@ -78,6 +78,7 @@ export default function TicketFilters({
 
   const { width } = useWindowDimensions();
   const isCompact = width < 768;
+  const isMobileSheet = width < 640; // threshold for bottom sheet behavior
 
   const icon = isCompact ? 12 : 14;
   const chevron = isCompact ? 11 : 12;
@@ -160,10 +161,54 @@ export default function TicketFilters({
     };
   }, [filterOpen, filterAnchorRef, setFilterOpen]);
 
+  // Prevent background scroll when mobile sheet open
+  useEffect(() => {
+    if (isMobileSheet && filterOpen) {
+      const original = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = original;
+      };
+    }
+  }, [isMobileSheet, filterOpen]);
+
+  const panelStyle: React.CSSProperties = isMobileSheet
+    ? {
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        padding: 16,
+        zIndex: 2001,
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        boxShadow: '0 -2px 12px rgba(0,0,0,0.15)',
+        animation: 'tf-slide-up 180ms ease',
+      }
+    : {
+        position: "fixed",
+        top: panelPos.top,
+        left: panelPos.left,
+        width: panelPos.width,
+        background: "#fff",
+        borderRadius: 10,
+        boxShadow:
+          "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+        padding: 10,
+        zIndex: 2000,
+        maxHeight: "70vh",
+        overflowY: "auto",
+        overflowX: "hidden",
+      };
+
   return (
     <div className="toolbar">
       <style>
         {`
+          @keyframes tf-slide-up { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
           .tf-date {
             height: 30px;
             padding: 2px 8px;
@@ -295,27 +340,61 @@ export default function TicketFilters({
       </div>
 
       {filterOpen && (
-        <div
-          id="filter-dropdown-panel"
-          role="dialog"
-          aria-label="Filter tickets"
-          className="toolbar__dropdown"
-          style={{
-            position: "fixed",
-            top: panelPos.top,
-            left: panelPos.left,
-            width: panelPos.width,
-            background: "#fff",
-            borderRadius: 10,
-            boxShadow:
-              "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
-            padding: 10,
-            zIndex: 2000,
-            maxHeight: "70vh",
-            overflowY: "auto",
-            overflowX: "hidden",
-          }}
-        >
+        <>
+          {isMobileSheet && (
+            <div
+              onClick={() => setFilterOpen(false)}
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(0,0,0,0.35)',
+                zIndex: 2000,
+              }}
+              aria-hidden
+            />
+          )}
+          <div
+            id="filter-dropdown-panel"
+            role="dialog"
+            aria-label="Filter tickets"
+            className="toolbar__dropdown"
+            style={panelStyle}
+          >
+            {isMobileSheet && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                marginBottom: 4,
+              }}>
+                <div style={{
+                  width: 44,
+                  height: 4,
+                  borderRadius: 2,
+                  background: '#d0d0d0',
+                  position: 'absolute',
+                  top: -6,
+                  left: '50%',
+                  transform: 'translateX(-50%)'
+                }} />
+                <strong style={{ fontSize: 16 }}>Filters</strong>
+                <button
+                  onClick={() => setFilterOpen(false)}
+                  aria-label="Close"
+                  style={{
+                    position: 'absolute',
+                    right: -4,
+                    top: -8,
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: 28,
+                    lineHeight: '28px',
+                    cursor: 'pointer',
+                  }}
+                >×</button>
+              </div>
+            )}
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Price ranges</div>
           <div
             style={{
@@ -399,6 +478,11 @@ export default function TicketFilters({
               justifyContent: "space-between",
               marginTop: 10,
               gap: 6,
+              position: isMobileSheet ? 'sticky' : undefined,
+              bottom: isMobileSheet ? 0 : undefined,
+              background: isMobileSheet ? '#fff' : undefined,
+              paddingTop: isMobileSheet ? 8 : undefined,
+              paddingBottom: isMobileSheet ? 4 : undefined,
             }}
           >
             <button
@@ -411,6 +495,7 @@ export default function TicketFilters({
                 color: "#333",
                 cursor: "pointer",
                 minWidth: 78,
+                flex: isMobileSheet ? 1 : undefined,
               }}
             >
               Reset
@@ -425,12 +510,14 @@ export default function TicketFilters({
                 color: "#fff",
                 cursor: "pointer",
                 minWidth: 78,
+                flex: isMobileSheet ? 1 : undefined,
               }}
             >
-              Close
+              {isMobileSheet ? 'Close' : 'Close'}
             </button>
           </div>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

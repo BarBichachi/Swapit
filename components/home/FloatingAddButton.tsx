@@ -4,13 +4,24 @@ import { Pressable, StyleSheet, View } from "react-native";
 
 interface FloatingAddButtonProps {
   onPress: () => void;
+  hide?: boolean; // when true, slide out / hide (e.g. when filter sheet open)
 }
 
-export default function FloatingAddButton({ onPress }: FloatingAddButtonProps) {
+export default function FloatingAddButton({ onPress, hide = false }: FloatingAddButtonProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
-    <View style={styles.wrap}>
+    <View
+      style={[
+        styles.wrap,
+        { transition: 'bottom 180ms ease, opacity 160ms ease' } as any,
+        hide && {
+          bottom: -120, // push below viewport
+          opacity: 0,
+          pointerEvents: 'none',
+        },
+      ]}
+    >
       <Pressable
         onPress={onPress}
         onHoverIn={() => setIsHovered(true)}
@@ -35,7 +46,7 @@ const styles = StyleSheet.create({
     bottom: 40,
     left: "50%",
     transform: [{ translateX: -30 }],
-    zIndex: 100,
+  zIndex: 100,
   },
   fab: {
     width: 60,

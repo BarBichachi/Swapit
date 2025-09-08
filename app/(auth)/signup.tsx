@@ -82,8 +82,17 @@ export default function SignupPage() {
 
     const { email: eMail, password, ...profile } = form;
     const { data, error: signUpError } = await supabase.auth.signUp({
-      email: eMail.trim().toLocaleLowerCase(),
-      password: password.trim(),
+      email: eMail,
+      password,
+      options: {
+        data: {
+          first_name: profile.firstName,
+          last_name: profile.lastName,
+          phone: profile.phone,
+          birth_year: Number(profile.birthYear) || null,
+          gender: profile.gender || null,
+        },
+      },
     });
 
     if (signUpError || !data.user) {

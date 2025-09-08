@@ -1,37 +1,52 @@
 "use client";
 
 import { useAuthContext } from "@/contexts/AuthContext";
-import { useIsFocused } from "@react-navigation/native";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 
 export default function LogoutPage() {
-  const { logout, waitForSignedOut } = useAuthContext();
+  const { logout } = useAuthContext();
   const router = useRouter();
-  const isFocused = useIsFocused();
+  const pathname = usePathname();
   const [err, setErr] = useState<string | null>(null);
 
+  // track whether we've already performed logout for the current visit
+  const attemptedRef = useRef(false);
+
   useEffect(() => {
-    if (!isFocused) return; // only when user actually navigates here
-    let cancelled = false;
+    // Only run when actually on /logout
+    if (pathname !== "/logout") {
+      // leaving the route -> allow running next time we come back
+      attemptedRef.current = false;
+      return;
+    }
+    if (attemptedRef.current) return; // already ran for this visit
+    attemptedRef.current = true;
 
-    (async () => {
+    // do not await network here; logout() should clear locally and resolve immediately
+    try {
+      logout().catch(() => {}); // fire-and-forget; we already flip UI locally
+
+      // defer navigation so header can re-render to "Guest" first
+      const goHome = () => {
+        try {
+          router.replace("/");
+        } catch {
+          if (typeof window !== "undefined") window.location.assign("/");
+        }
+      };
+
+      // next microtask + next frame + small timeout as belts-and-suspenders
+      Promise.resolve().then(() => requestAnimationFrame(goHome));
+      setTimeout(goHome, 250);
+    } catch (e: any) {
+      setErr(e?.message || "Sign out failed");
+      // still leave the page
       try {
-        // robust logout (global revoke with timeout, then local clear)
-        await logout(1500);
-        // wait for the provider to observe SIGNED_OUT (or give up after ~1.2s)
-        await waitForSignedOut(1200);
-      } catch (e: any) {
-        if (!cancelled) setErr(e?.message || "Sign out failed");
-      } finally {
-        if (!cancelled) router.replace("/");
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isFocused, logout, waitForSignedOut, router]);
+        router.replace("/");
+      } catch {}
+    }
+  }, [pathname, logout, router]);
 
   return (
     <div className="form-container">

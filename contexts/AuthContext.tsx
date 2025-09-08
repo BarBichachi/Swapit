@@ -10,6 +10,9 @@ import {
   useState,
 } from "react";
 
+const TS = () => new Date().toISOString().split("T")[1].replace("Z", "");
+const d = (...args: any[]) => console.log(`[auth ${TS()}]`, ...args);
+
 type CurrentUser = {
   // unified, safe-to-use fields (always present with sensible defaults)
   id: string | null;
@@ -48,6 +51,8 @@ type AuthContextValue = {
   logout: (timeoutMs?: number) => Promise<void>;
   waitForSignedIn: (timeoutMs?: number) => Promise<void>;
   waitForSignedOut: (timeoutMs?: number) => Promise<void>;
+  waitForProfileReady: (timeoutMs?: number) => Promise<void>;
+  profileReady: boolean;
 };
 
 export const AuthContext = createContext<AuthContextValue | undefined>(
@@ -59,56 +64,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
-
   const mountedRef = useRef(true);
 
   const fetchProfile = async (userId: string) => {
+    if (!userId) return;
+    d("fetchProfile:start", { userId });
+
+    // `maybeSingle` => returns { data: null, error: null } when 0 rows (no throw)
     const { data, error } = await supabase
       .from("profiles")
       .select(
         "id, first_name, last_name, email, phone, balance, birth_year, gender"
       )
       .eq("id", userId)
-      .single();
+      .maybeSingle();
 
     if (!mountedRef.current) return;
-    if (!userId) return;
-    if (error || !data) setProfile(null);
-    else setProfile(data as Profile);
+
+    if (error) {
+      d("fetchProfile:error", { msg: error.message });
+      setProfile(null);
+      return;
+    }
+
+    if (!data) {
+      d("fetchProfile:none", { userId }); // no row yet; keep UI using metadata/email fallback
+      setProfile(null);
+      return;
+    }
+
+    d("fetchProfile:ok", {
+      id: data.id,
+      first: data.first_name,
+      last: data.last_name,
+    });
+    setProfile(data as Profile);
+  };
+
+  const withTimeout = <T,>(p: Promise<T>, ms = 1500) =>
+    Promise.race<T>([
+      p,
+      new Promise<T>((_, rej) =>
+        setTimeout(() => rej(new Error("pf-timeout")), ms)
+      ),
+    ]);
+
+  const safeFetchProfile = async (uid: string) => {
+    try {
+      await withTimeout(fetchProfile(uid), 1500);
+    } catch (e) {
+      d("fetchProfile:timeout-or-error", { uid, err: String(e) });
+      // retry once shortly (token/trigger propagation, hidden-tab throttling, etc.)
+      setTimeout(() => {
+        fetchProfile(uid)
+          .then(() => d("fetchProfile:retry:ok", { uid }))
+          .catch((err) =>
+            d("fetchProfile:retry:error", { uid, err: String(err) })
+          );
+      }, 200);
+    }
   };
 
   // bootstrap once
   useEffect(() => {
     mountedRef.current = true;
 
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      const sessionUser = data?.session?.user ?? null;
-      if (!mountedRef.current) return;
+    // One path to rule them all
+    const { data: sub } = supabase.auth.onAuthStateChange((evt, session) => {
+      d("AUTH_EVT", { evt, uid: session?.user?.id ?? null });
 
-      setAuthUser(sessionUser);
-      if (sessionUser) await fetchProfile(sessionUser.id);
-      setLoading(false);
-    })();
+      const nextUser = session?.user ?? null;
+      setAuthUser(nextUser);
 
-    // auth changes (login/logout/refresh)
-    const { data: sub } = supabase.auth.onAuthStateChange(
-      async (evt, session) => {
-        if (!mountedRef.current) return;
+      if (nextUser) safeFetchProfile(nextUser.id); // <-- no await
+      else setProfile(null);
 
-        const nextUser = session?.user ?? null;
-        setAuthUser(nextUser);
-
-        if (nextUser) await fetchProfile(nextUser.id);
-        else setProfile(null);
-      }
-    );
+      if (loading) setLoading(false);
+    });
 
     return () => {
       mountedRef.current = false;
       sub?.subscription?.unsubscribe();
     };
   }, []);
+
+  const profileReady = !!(authUser?.id && profile?.id === authUser.id);
 
   // realtime updates for my profile row
   useEffect(() => {
@@ -133,21 +173,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [authUser?.id]);
 
   const refreshProfile = async () => {
-    if (authUser?.id) {
-      try {
-        await fetchProfile(authUser.id);
-      } catch (e) {
-        console.error("Failed to refresh profile:", e);
-      }
+    try {
+      // use latest session in case authUser isn't set yet
+      const id =
+        authUser?.id ?? (await supabase.auth.getUser()).data.user?.id ?? null;
+      if (!id) return;
+      await fetchProfile(id);
+    } catch (e) {
+      console.error("Failed to refresh profile:", e);
     }
   };
 
   const signInWithPassword = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    d("LOGIN:start", { email });
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
-    return { error: error ?? undefined };
+    if (error) {
+      d("LOGIN:error", error.message);
+      return { error: error ?? undefined };
+    }
+    d("LOGIN:ok", { uid: data?.user?.id ?? null });
+
+    if (data?.user?.id) {
+      setAuthUser(data.user);
+      await fetchProfile(data.user.id);
+    }
+    return { error: undefined };
   };
 
   const updateProfile = async (
@@ -167,45 +220,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: error ?? undefined };
   };
 
-  const logout = async (timeoutMs = 1500) => {
-    // Try global revoke, but don't hang forever
-    const globalRevoke = supabase.auth.signOut();
-
-    let timedOut = false;
-    await Promise.race([
-      globalRevoke,
-      new Promise<void>((resolve) =>
-        setTimeout(() => {
-          timedOut = true;
-          resolve();
-        }, timeoutMs)
-      ),
-    ]);
-
-    if (timedOut) {
-      // Force local signout if global revoke stalled
-      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
-    }
-
-    // Ensure UI flips immediately regardless of server revoke result
+  const logout = (_timeoutMs?: number): Promise<void> => {
+    // Fire-and-forget: never await here
+    d("LOGOUT:start");
+    supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    // Flip UI now
     setAuthUser(null);
     setProfile(null);
+    // Best-effort server revoke, also fire-and-forget
+    supabase.auth.signOut().catch(() => {});
+    d("LOGOUT:localCLEARED+revokeFired");
+    // Resolve immediately
+    return Promise.resolve();
   };
 
   const waitForSignedIn = async (timeoutMs = 1200) => {
-    // Fast paths
     if (authUser?.id) return;
     const { data } = await supabase.auth.getSession();
     if (data.session?.user) return;
 
-    // Otherwise, wait for the next SIGNED_IN (or timeout)
     await new Promise<void>((resolve) => {
       let settled = false;
+      let unsub: (() => void) | null = null;
 
       const to = setTimeout(() => {
         if (settled) return;
         settled = true;
-        sub?.subscription?.unsubscribe();
+        unsub?.();
         resolve();
       }, timeoutMs);
 
@@ -214,23 +255,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           settled = true;
           clearTimeout(to);
-          sub.subscription.unsubscribe();
+          unsub?.();
           resolve();
         }
       });
+
+      unsub = () => sub.subscription.unsubscribe();
     });
   };
 
   const waitForSignedOut = async (timeoutMs = 1200) => {
-    if (!authUser?.id) return; // already signed out
-
+    if (!authUser?.id) return;
     await new Promise<void>((resolve) => {
       let settled = false;
+      let unsub: (() => void) | null = null;
 
       const to = setTimeout(() => {
         if (settled) return;
         settled = true;
-        sub?.subscription?.unsubscribe();
+        unsub?.();
         resolve();
       }, timeoutMs);
 
@@ -239,32 +282,113 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!session?.user) {
           settled = true;
           clearTimeout(to);
-          sub.subscription.unsubscribe();
+          unsub?.();
           resolve();
         }
       });
+
+      unsub = () => sub.subscription.unsubscribe();
     });
   };
+
+  const profileReadyWaiters = useRef<(() => void)[]>([]);
+
+  // call all waiters when profile matches current auth user
+  useEffect(() => {
+    if (authUser?.id && profile?.id === authUser.id) {
+      const ws = profileReadyWaiters.current.splice(0);
+      ws.forEach((fn) => fn());
+    }
+  }, [authUser?.id, profile?.id]);
+
+  const waitForProfileReady = (timeoutMs = 1200) =>
+    new Promise<void>((resolve) => {
+      // already ready
+      if (authUser?.id && profile?.id === authUser.id) return resolve();
+
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        resolve();
+      };
+
+      profileReadyWaiters.current.push(finish);
+      setTimeout(finish, timeoutMs);
+    });
 
   // --- unified view exposed to the app ---
   const currentUser = useMemo<CurrentUser>(() => {
     const id = authUser?.id ?? profile?.id ?? null;
     const email = authUser?.email ?? profile?.email ?? null;
-    const phone = profile?.phone ?? null;
 
-    const first_name = profile?.first_name ?? null;
-    const last_name = profile?.last_name ?? null;
-    const fullName = [first_name?.trim(), last_name?.trim()]
-      .filter(Boolean)
-      .join(" ")
-      .trim();
+    const meta = (authUser?.user_metadata ?? {}) as Record<string, unknown>;
+
+    const asString = (v: unknown): string | null =>
+      typeof v === "string" && v.trim() ? v : null;
+
+    const asNumber = (v: unknown): number | null => {
+      const n =
+        typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const phone = asString(profile?.phone) ?? asString(meta.phone);
+
+    const first_name =
+      asString(profile?.first_name) ??
+      asString((meta as any).first_name) ??
+      asString((meta as any).firstName);
+
+    const last_name =
+      asString(profile?.last_name) ??
+      asString((meta as any).last_name) ??
+      asString((meta as any).lastName);
+
+    //let fullName = [first_name, last_name].filter(Boolean).join(" ").trim();
+    //if (!fullName) {
+    //  const handle = email?.split("@")[0] ?? "";
+    //  fullName = handle || "";
+    //}
+    let fullName = [first_name, last_name].filter(Boolean).join(" ").trim();
+    let nameSource: "profile" | "metadata" | "email" | "empty" = "empty";
+    if (first_name || last_name) {
+      nameSource =
+        profile?.first_name || profile?.last_name ? "profile" : "metadata";
+    } else if (email) {
+      const handle = email.split("@")[0] ?? "";
+      if (handle) {
+        fullName = handle;
+        nameSource = "email";
+      }
+    }
 
     const balance = Number(profile?.balance ?? 0);
-    const birth_year = (profile?.birth_year as number | null) ?? null;
-    const gender = profile?.gender ?? null;
+
+    const birth_year =
+      asNumber(profile?.birth_year as unknown) ??
+      asNumber((meta as any).birth_year) ??
+      asNumber((meta as any).birthYear);
+
+    // Ensure gender is ALWAYS string | null (never number)
+    const genderRaw = profile?.gender ?? ((meta as any).gender as unknown);
+    const gender =
+      typeof genderRaw === "string"
+        ? genderRaw
+        : typeof genderRaw === "number"
+        ? String(genderRaw)
+        : null;
 
     const isLoggedIn = !!authUser?.id;
-
+    d("currentUser", {
+      isLoggedIn,
+      id,
+      fullName,
+      nameSource,
+      haveProfile: !!profile?.id,
+      metaFirst: (meta as any).first_name ?? (meta as any).firstName ?? null,
+      profFirst: profile?.first_name ?? null,
+    });
     return {
       id,
       email,
@@ -291,6 +415,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         waitForSignedIn,
         waitForSignedOut,
+        waitForProfileReady,
+        profileReady,
       }}
     >
       {children}

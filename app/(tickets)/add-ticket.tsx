@@ -308,6 +308,7 @@ export default function AddTicketPage() {
           seat_number: u.is_seated ? u.seat_number : null,
           ticket_pdf_url,
           original_price: Number(u.original_price),
+          current_price: Number(u.original_price),
           status: "active",
         });
       }

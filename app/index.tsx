@@ -25,8 +25,13 @@ export default function HomePage() {
 
   // Filter UI (price ranges + date range)
   const [filterOpen, setFilterOpen] = useState(false);
-  const [selectedPriceRanges, setSelectedPriceRanges] = useState<PriceRange[]>([]);
-  const [dateRange, setDateRange] = useState<{ from: string | null; to: string | null }>({
+  const [selectedPriceRanges, setSelectedPriceRanges] = useState<PriceRange[]>(
+    []
+  );
+  const [dateRange, setDateRange] = useState<{
+    from: string | null;
+    to: string | null;
+  }>({
     from: null,
     to: null,
   });
@@ -37,6 +42,15 @@ export default function HomePage() {
 
   const { tickets, groups, refetch, ticketIdMap } = useTickets();
   const { currentUser, loading, refreshProfile } = useAuthContext();
+
+  console.log("[HOME]", {
+    loading,
+    isLoggedIn: currentUser.isLoggedIn,
+    uid: currentUser.id,
+    fullName: currentUser.fullName,
+    rawAuth: !!currentUser.raw.authUser,
+    rawProfile: !!currentUser.raw.profile,
+  });
 
   // Apply filters & sort on groups (not individual ticket units)
   const filteredGroups = useFilteredTickets({
@@ -49,12 +63,17 @@ export default function HomePage() {
 
   // Support opening a ticket via query string (?open=ticket&ticketId=...)
   const pathname = usePathname();
-  const params = useLocalSearchParams<{ open?: string | string[]; ticketId?: string | string[] }>();
+  const params = useLocalSearchParams<{
+    open?: string | string[];
+    ticketId?: string | string[];
+  }>();
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
 
   useEffect(() => {
     const open = Array.isArray(params.open) ? params.open[0] : params.open;
-    const ticketId = Array.isArray(params.ticketId) ? params.ticketId[0] : params.ticketId;
+    const ticketId = Array.isArray(params.ticketId)
+      ? params.ticketId[0]
+      : params.ticketId;
     if (open === "ticket" && ticketId) setPendingTicketId(String(ticketId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.open, params.ticketId]);
@@ -74,7 +93,9 @@ export default function HomePage() {
 
   // IDs of selected group's ticket units
   const selectedTicketIds =
-    selectedTicket && ticketIdMap instanceof Map && typeof selectedTicket.id === "string"
+    selectedTicket &&
+    ticketIdMap instanceof Map &&
+    typeof selectedTicket.id === "string"
       ? ticketIdMap.get(selectedTicket.id) ?? []
       : [];
 
@@ -82,7 +103,11 @@ export default function HomePage() {
     <View style={{ flex: 1, position: "relative", zIndex: 1 }}>
       <ScrollView
         style={{ padding: 16 }}
-        contentContainerStyle={{ zIndex: 0, position: "relative", paddingBottom: 100 }}
+        contentContainerStyle={{
+          zIndex: 0,
+          position: "relative",
+          paddingBottom: 100,
+        }}
         onScrollBeginDrag={() => {
           setSortOpen(false);
           setFilterOpen(false);
@@ -90,7 +115,11 @@ export default function HomePage() {
       >
         <WelcomeHeader
           userName={
-            loading ? "Guest" : currentUser.isLoggedIn ? currentUser.fullName || "User" : "Guest"
+            loading
+              ? "Guest"
+              : currentUser.isLoggedIn
+              ? currentUser.fullName || "User"
+              : "Guest"
           }
         />
 

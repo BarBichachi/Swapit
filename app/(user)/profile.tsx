@@ -4,8 +4,9 @@ import TicketUpdateModal from "@/components/tickets/TicketUpdateModal";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { usePurchasedTickets } from "@/hooks/usePurchasedTickets";
 import { useTickets } from "@/hooks/useTickets";
+import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Pressable,
   ScrollView,
@@ -87,6 +88,7 @@ const formatPhone = (phone: string) => {
 export default function ProfileScreen() {
   const { currentUser, loading } = useAuthContext();
   const router = useRouter();
+  const isFocused = useIsFocused();
 
   const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(
     null
@@ -104,19 +106,39 @@ export default function ProfileScreen() {
     tickets,
     groups,
     loading: loadingSelling,
-    refetch,
+    refetch: refetchSelling,
     ticketIdMap,
   } = useTickets();
 
   // משיכת הכרטיסים שרכשתי
-  const { tickets: purchasedTickets, loading: loadingPurchased } =
-    usePurchasedTickets(currentUser.id ?? null);
+  const {
+    tickets: purchasedTickets,
+    loading: loadingPurchased,
+    refetch: refetchPurchased,
+  } = usePurchasedTickets(currentUser.id ?? null);
+
+  console.log("[PROFILE]", {
+    authLoading: loading,
+    uid: currentUser.id,
+    fullName: currentUser.fullName,
+    haveProfile: !!currentUser.raw.profile,
+    loadingSelling,
+    loadingPurchased,
+    isLoggedIn: currentUser.isLoggedIn,
+  });
+
+  // Refresh lists whenever Profile becomes the active screen
+  useEffect(() => {
+    if (!isFocused || !currentUser.isLoggedIn) return;
+    refetchSelling();
+    refetchPurchased();
+  }, [isFocused, currentUser.isLoggedIn, refetchSelling, refetchPurchased]);
 
   const handleUpdateDetails = () => {
     router.push("/(user)/updatedetails");
   };
 
-  if (loading || loadingSelling || loadingPurchased) {
+  if (loading) {
     return (
       <View style={styles.centerTop}>
         <Text>Loading data...</Text>
@@ -134,6 +156,14 @@ export default function ProfileScreen() {
         >
           <Text style={{ color: "#fff" }}>Go to Login</Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (loadingPurchased || loadingSelling) {
+    return (
+      <View style={styles.centerTop}>
+        <Text>Loading data...</Text>
       </View>
     );
   }
@@ -251,7 +281,7 @@ export default function ProfileScreen() {
         tickets={tickets}
         onUpdated={() => {
           setUpdateModalVisible(false);
-          refetch();
+          refetchSelling();
         }}
       />
 

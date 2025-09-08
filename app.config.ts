@@ -2,6 +2,7 @@ export default {
   name: "Swapit",
   slug: "swapit",
   version: "1.0.0",
+  plugins: ["expo-router"],
   extra: {
     supabaseUrl: "https://fsnzptxquxzykcwvwhck.supabase.co",
     supabaseKey:

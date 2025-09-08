@@ -26,6 +26,8 @@ export default function LoginPage() {
     loading: authLoading,
     signInWithPassword,
     waitForSignedIn,
+    waitForProfileReady,
+    profileReady,
   } = useAuthContext();
 
   // Local redirect guard flags
@@ -63,6 +65,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (authLoading) return; // wait for bootstrap
     if (!currentUser.isLoggedIn) return; // only when logged in
+    if (!profileReady) return; // wait until profile is in context
     if (redirecting || hasNavigatedRef.current) return;
 
     const { dest, open, ticketId } = destInfo;
@@ -83,6 +86,7 @@ export default function LoginPage() {
   }, [
     authLoading,
     currentUser.isLoggedIn,
+    profileReady,
     redirecting,
     destInfo,
     router,
@@ -153,10 +157,7 @@ export default function LoginPage() {
         return;
       }
 
-      // Wait for session to settle, then navigate (avoids "Hi Guest" after 2nd login)
       setEmptyFields(new Set());
-      setRedirecting(true);
-      await waitForSignedIn(); // resolves on SIGNED_IN or after ~1.2s fallback
 
       const { dest, open, ticketId } = destInfo;
       const isAuthRoute = dest.startsWith("/(auth)");

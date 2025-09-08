@@ -122,7 +122,15 @@ export default function SignupPage() {
     } catch (_) {
       throw new Error("Failed to save profile data");
     }
-
+    setForm({
+      email: "",
+      password: "",
+      firstName: "",
+      lastName: "",
+      phone: "",
+      birthYear: "",
+      gender: "",
+    });
     router.replace("/");
   };
   return (

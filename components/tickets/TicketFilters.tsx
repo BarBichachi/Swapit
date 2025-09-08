@@ -178,15 +178,15 @@ export default function TicketFilters({
         left: 0,
         right: 0,
         bottom: 0,
-        background: '#fff',
+        background: "#fff",
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         padding: 16,
         zIndex: 2001,
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        boxShadow: '0 -2px 12px rgba(0,0,0,0.15)',
-        animation: 'tf-slide-up 180ms ease',
+        maxHeight: "80vh",
+        overflowY: "auto",
+        boxShadow: "0 -2px 12px rgba(0,0,0,0.15)",
+        animation: "tf-slide-up 180ms ease",
       }
     : {
         position: "fixed",
@@ -195,8 +195,7 @@ export default function TicketFilters({
         width: panelPos.width,
         background: "#fff",
         borderRadius: 10,
-        boxShadow:
-          "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+        boxShadow: "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
         padding: 10,
         zIndex: 2000,
         maxHeight: "70vh",
@@ -345,9 +344,9 @@ export default function TicketFilters({
             <div
               onClick={() => setFilterOpen(false)}
               style={{
-                position: 'fixed',
+                position: "fixed",
                 inset: 0,
-                background: 'rgba(0,0,0,0.35)',
+                background: "rgba(0,0,0,0.35)",
                 zIndex: 2000,
               }}
               aria-hidden
@@ -361,161 +360,153 @@ export default function TicketFilters({
             style={panelStyle}
           >
             {isMobileSheet && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                position: 'relative',
-                marginBottom: 4,
-              }}>
-                <div style={{
-                  width: 44,
-                  height: 4,
-                  borderRadius: 2,
-                  background: '#d0d0d0',
-                  position: 'absolute',
-                  top: -6,
-                  left: '50%',
-                  transform: 'translateX(-50%)'
-                }} />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  marginBottom: 4,
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 4,
+                    borderRadius: 2,
+                    background: "#d0d0d0",
+                    position: "absolute",
+                    top: -6,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                  }}
+                />
                 <strong style={{ fontSize: 16 }}>Filters</strong>
                 <button
                   onClick={() => setFilterOpen(false)}
                   aria-label="Close"
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     right: -4,
                     top: -8,
-                    background: 'transparent',
-                    border: 'none',
+                    background: "transparent",
+                    border: "none",
                     fontSize: 28,
-                    lineHeight: '28px',
-                    cursor: 'pointer',
-                  }}
-                >×</button>
-              </div>
-            )}
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Price ranges</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: 6,
-              marginBottom: 8,
-            }}
-          >
-            {ALL_PRICE_RANGES.map((opt) => (
-              <label
-                key={opt.value}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  minHeight: 24,
-                  lineHeight: "18px",
-                  cursor: "pointer",
-                  fontSize: 14,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedPriceRanges.includes(opt.value)}
-                  onChange={() => toggleRange(opt.value)}
-                  style={{
-                    width: 14,
-                    height: 14,
-                    margin: 0,
+                    lineHeight: "28px",
                     cursor: "pointer",
                   }}
-                />
-                <span style={{ userSelect: "none" }}>{opt.label}</span>
-              </label>
-            ))}
-          </div>
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Price ranges</div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 6,
+                marginBottom: 8,
+              }}
+            >
+              {ALL_PRICE_RANGES.map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    minHeight: 24,
+                    lineHeight: "18px",
+                    cursor: "pointer",
+                    fontSize: 14,
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedPriceRanges.includes(opt.value)}
+                    onChange={() => toggleRange(opt.value)}
+                    style={{
+                      width: 14,
+                      height: 14,
+                      margin: 0,
+                      cursor: "pointer",
+                    }}
+                  />
+                  <span style={{ userSelect: "none" }}>{opt.label}</span>
+                </label>
+              ))}
+            </div>
 
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Date range</div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(120px,1fr) minmax(120px,1fr) auto",
-              gap: 6,
-              alignItems: "center",
-            }}
-          >
-            <input
-              type="date"
-              className="tf-date"
-              value={dateRange.from ?? ""}
-              onChange={(e) => setFrom(e.target.value || null)}
-              aria-label="From date"
-            />
-            <input
-              type="date"
-              className="tf-date"
-              value={dateRange.to ?? ""}
-              onChange={(e) => setTo(e.target.value || null)}
-              aria-label="To date"
-            />
-            <button
-              type="button"
-              onClick={() => setDateRange({ from: null, to: null })}
-              className="tf-btn-sm"
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Date range</div>
+            <div
               style={{
-                border: "1px solid #ddd",
-                background: "#fff",
-                color: "#333",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
+                display: "grid",
+                gridTemplateColumns: "minmax(120px,1fr) minmax(120px,1fr) auto",
+                gap: 6,
+                alignItems: "center",
               }}
             >
-              Clear
-            </button>
-          </div>
+              <input
+                type="date"
+                className="tf-date"
+                value={dateRange.from ?? ""}
+                onChange={(e) => setFrom(e.target.value || null)}
+                aria-label="From date"
+              />
+              <input
+                type="date"
+                className="tf-date"
+                value={dateRange.to ?? ""}
+                onChange={(e) => setTo(e.target.value || null)}
+                aria-label="To date"
+              />
+            </div>
 
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 10,
-              gap: 6,
-              position: isMobileSheet ? 'sticky' : undefined,
-              bottom: isMobileSheet ? 0 : undefined,
-              background: isMobileSheet ? '#fff' : undefined,
-              paddingTop: isMobileSheet ? 8 : undefined,
-              paddingBottom: isMobileSheet ? 4 : undefined,
-            }}
-          >
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="tf-btn-sm"
+            <div
               style={{
-                border: "1px solid #ddd",
-                background: "#fff",
-                color: "#333",
-                cursor: "pointer",
-                minWidth: 78,
-                flex: isMobileSheet ? 1 : undefined,
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: 10,
+                gap: 6,
+                position: isMobileSheet ? "sticky" : undefined,
+                bottom: isMobileSheet ? 0 : undefined,
+                background: isMobileSheet ? "#fff" : undefined,
+                paddingTop: isMobileSheet ? 8 : undefined,
+                paddingBottom: isMobileSheet ? 4 : undefined,
               }}
             >
-              Reset
-            </button>
-            <button
-              type="button"
-              onClick={() => setFilterOpen(false)}
-              className="tf-btn-sm"
-              style={{
-                border: "none",
-                background: "#4FC3F7",
-                color: "#fff",
-                cursor: "pointer",
-                minWidth: 78,
-                flex: isMobileSheet ? 1 : undefined,
-              }}
-            >
-              {isMobileSheet ? 'Close' : 'Close'}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="tf-btn-sm"
+                style={{
+                  border: "1px solid #ddd",
+                  background: "#fff",
+                  color: "#333",
+                  cursor: "pointer",
+                  minWidth: 78,
+                  flex: isMobileSheet ? 1 : undefined,
+                }}
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterOpen(false)}
+                className="tf-btn-sm"
+                style={{
+                  border: "none",
+                  background: "#4FC3F7",
+                  color: "#fff",
+                  cursor: "pointer",
+                  minWidth: 78,
+                  flex: isMobileSheet ? 1 : undefined,
+                }}
+              >
+                {isMobileSheet ? "Close" : "Close"}
+              </button>
+            </div>
           </div>
         </>
       )}

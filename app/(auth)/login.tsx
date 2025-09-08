@@ -74,7 +74,7 @@ export default function LoginPage() {
 
     hasNavigatedRef.current = true;
     setRedirecting(true);
-
+    setForm({ email: "", password: "" });
     router.replace(
       isAuthRoute || isSameRoute
         ? "/"
@@ -158,7 +158,7 @@ export default function LoginPage() {
       }
 
       setEmptyFields(new Set());
-
+      setForm({ email: "", password: "" });
       const { dest, open, ticketId } = destInfo;
       const isAuthRoute = dest.startsWith("/(auth)");
       const isSameRoute = dest === pathname;

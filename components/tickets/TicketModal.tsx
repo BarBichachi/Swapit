@@ -86,7 +86,6 @@ export default function TicketModal({
         .single();
 
       if (error) {
-        console.error("fetchTicket error:", error);
         return;
       }
 
@@ -178,7 +177,9 @@ export default function TicketModal({
       return;
     }
 
-    const filename = `${sanitize(localTicket?.eventTitle)}-${localTicket?.id}.pdf`;
+    const filename = `${sanitize(localTicket?.eventTitle)}-${
+      localTicket?.id
+    }.pdf`;
 
     try {
       if (Platform.OS === "web") {
@@ -194,7 +195,9 @@ export default function TicketModal({
         a.remove();
         URL.revokeObjectURL(objectUrl);
       } else {
-        const target = (FileSystem.documentDirectory || FileSystem.cacheDirectory) + filename;
+        const target =
+          (FileSystem.documentDirectory || FileSystem.cacheDirectory) +
+          filename;
         const { uri } = await FileSystem.downloadAsync(url, target);
         if (await Sharing.isAvailableAsync()) {
           await Sharing.shareAsync(uri, {
@@ -207,7 +210,6 @@ export default function TicketModal({
         }
       }
     } catch (e) {
-      console.error("download error:", e);
       alert("Failed to download the ticket file.");
     }
   };
@@ -316,7 +318,10 @@ export default function TicketModal({
           <View style={styles.footer}>
             <View style={styles.footerLeft}>
               {canDownload && !!localTicket.ticketPdfUrl && (
-                <TouchableOpacity onPress={handleDownload} style={styles.navButton}>
+                <TouchableOpacity
+                  onPress={handleDownload}
+                  style={styles.navButton}
+                >
                   <Text style={styles.navButtonText}>Download</Text>
                 </TouchableOpacity>
               )}

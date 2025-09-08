@@ -117,16 +117,6 @@ export default function ProfileScreen() {
     refetch: refetchPurchased,
   } = usePurchasedTickets(currentUser.id ?? null);
 
-  console.log("[PROFILE]", {
-    authLoading: loading,
-    uid: currentUser.id,
-    fullName: currentUser.fullName,
-    haveProfile: !!currentUser.raw.profile,
-    loadingSelling,
-    loadingPurchased,
-    isLoggedIn: currentUser.isLoggedIn,
-  });
-
   // Refresh lists whenever Profile becomes the active screen
   useEffect(() => {
     if (!isFocused || !currentUser.isLoggedIn) return;

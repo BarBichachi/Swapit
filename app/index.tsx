@@ -43,15 +43,6 @@ export default function HomePage() {
   const { tickets, groups, refetch, ticketIdMap } = useTickets();
   const { currentUser, loading, refreshProfile } = useAuthContext();
 
-  console.log("[HOME]", {
-    loading,
-    isLoggedIn: currentUser.isLoggedIn,
-    uid: currentUser.id,
-    fullName: currentUser.fullName,
-    rawAuth: !!currentUser.raw.authUser,
-    rawProfile: !!currentUser.raw.profile,
-  });
-
   // Apply filters & sort on groups (not individual ticket units)
   const filteredGroups = useFilteredTickets({
     tickets: groups,

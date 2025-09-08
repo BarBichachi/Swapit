@@ -334,7 +334,6 @@ export default function AddTicketPage() {
 
       router.push({ pathname: "/", params: { refresh: "tickets" } } as any);
     } catch (err: any) {
-      console.error(err);
       setError(err.message ?? "Failed to add tickets.");
     } finally {
       setSubmitting(false);

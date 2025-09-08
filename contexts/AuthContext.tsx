@@ -153,9 +153,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authUser?.id ?? (await supabase.auth.getUser()).data.user?.id ?? null;
       if (!id) return;
       await fetchProfile(id);
-    } catch (e) {
-      console.error("Failed to refresh profile:", e);
-    }
+    } catch (e) {}
   };
 
   const signInWithPassword = async (email: string, password: string) => {

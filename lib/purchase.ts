@@ -112,9 +112,6 @@ async function replaceQr(ticketId: string) {
     }
 
     const data = await response.json();
-    console.log("Response:", data);
     return data;
-  } catch (error) {
-    console.error("Error:", error);
-  }
+  } catch (error) {}
 }

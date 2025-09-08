@@ -1,7 +1,7 @@
 "use client";
 
 import Input from "@/components/global/Input";
-import { birthYears, cities, genders } from "@/lib/constants/registration";
+import { birthYears, genders } from "@/lib/constants/registration";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -14,7 +14,6 @@ export default function SignupPage() {
     firstName: "",
     lastName: "",
     phone: "",
-    city: "",
     birthYear: "",
     gender: "",
   });
@@ -83,8 +82,8 @@ export default function SignupPage() {
 
     const { email: eMail, password, ...profile } = form;
     const { data, error: signUpError } = await supabase.auth.signUp({
-      email: eMail,
-      password,
+      email: eMail.trim().toLocaleLowerCase(),
+      password: password.trim(),
     });
 
     if (signUpError || !data.user) {
@@ -93,23 +92,26 @@ export default function SignupPage() {
       return;
     }
 
-    const { error: profileError } = await supabase.from("profiles").insert([
-      {
-        id: data.user.id,
-        email: email,
-        first_name: profile.firstName,
-        last_name: profile.lastName,
-        phone: profile.phone,
-        city: profile.city,
-        birth_year: parseInt(profile.birthYear),
-        gender: profile.gender,
-      },
-    ]);
-
-    if (profileError) {
-      setError(profileError.message);
+    if (!data.session) {
+      setError("Unexpected: session missing after sign up");
       setLoading(false);
       return;
+    }
+
+    // Persist profile fields
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          first_name: profile.firstName.trim(),
+          last_name: profile.lastName.trim(),
+          phone: profile.phone.trim(),
+          birth_year: profile.birthYear ? Number(profile.birthYear) : null,
+          gender: profile.gender || null,
+        })
+        .eq("id", data.user.id);
+    } catch (_) {
+      throw new Error("Failed to save profile data");
     }
 
     router.replace("/");
@@ -192,22 +194,6 @@ export default function SignupPage() {
                 ? genders
                     .map((g) => ({ label: g.label, value: g.value }))
                     .find((g) => g.value === form.gender)
-                : null
-            }
-            isSearchable
-          />
-        </div>
-
-        <div className="form-group">
-          <Select
-            options={cities.map((city) => ({ label: city, value: city }))}
-            placeholder="Select a City"
-            onChange={(selectedOption) =>
-              setForm({ ...form, city: selectedOption?.value || "" })
-            }
-            value={
-              cities.includes(form.city)
-                ? { label: form.city, value: form.city }
                 : null
             }
             isSearchable

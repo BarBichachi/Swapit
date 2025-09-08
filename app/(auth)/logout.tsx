@@ -1,65 +1,42 @@
 "use client";
 
 import { useAuthContext } from "@/contexts/AuthContext";
+import { useIsFocused } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 
-// Auto sign-out on mount, then redirect home
 export default function LogoutPage() {
-  const { currentUser, loading, logout } = useAuthContext();
+  const { logout, waitForSignedOut } = useAuthContext();
   const router = useRouter();
-  const [localLoading, setLocalLoading] = useState(true);
+  const isFocused = useIsFocused();
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    // Wait for auth bootstrap to finish
-    if (loading) return;
-
-    let active = true;
-
-    // If already logged out, just go home
-    if (!currentUser.isLoggedIn) {
-      router.replace("/");
-      return;
-    }
+    if (!isFocused) return; // only when user actually navigates here
+    let cancelled = false;
 
     (async () => {
       try {
-        await logout(); // AuthContext handles Supabase signOut + hard reload
-        if (!active) return;
-        router.replace("/");
+        // robust logout (global revoke with timeout, then local clear)
+        await logout(1500);
+        // wait for the provider to observe SIGNED_OUT (or give up after ~1.2s)
+        await waitForSignedOut(1200);
       } catch (e: any) {
-        if (!active) return;
-        setErr(e?.message || "Sign out failed");
+        if (!cancelled) setErr(e?.message || "Sign out failed");
       } finally {
-        if (active) setLocalLoading(false);
+        if (!cancelled) router.replace("/");
       }
     })();
 
     return () => {
-      active = false;
+      cancelled = true;
     };
-  }, [loading, currentUser.isLoggedIn, logout, router]);
-
-  if (loading) {
-    return (
-      <div className="form-container">
-        <h1 className="form-title">Preparing sign out…</h1>
-      </div>
-    );
-  }
+  }, [isFocused, logout, waitForSignedOut, router]);
 
   return (
     <div className="form-container">
-      <h1 className="form-title">
-        {localLoading ? "Signing out…" : "Signed out"}
-      </h1>
+      <h1 className="form-title">Signing out…</h1>
       {err && <p className="form-error">{err}</p>}
-      {!localLoading && (
-        <button className="form-button" onClick={() => router.replace("/")}>
-          Go Home
-        </button>
-      )}
     </div>
   );
 }

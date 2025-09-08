@@ -88,9 +88,13 @@ export default function ProfileScreen() {
   const { currentUser, loading } = useAuthContext();
   const router = useRouter();
 
-  const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(null);
+  const [selectedSellingGroup, setSelectedSellingGroup] = useState<any | null>(
+    null
+  );
   const [updateModalVisible, setUpdateModalVisible] = useState(false);
-  const [selectedPurchasedGroup, setSelectedPurchasedGroup] = useState<any | null>(null);
+  const [selectedPurchasedGroup, setSelectedPurchasedGroup] = useState<
+    any | null
+  >(null);
   const [purchasedModalVisible, setPurchasedModalVisible] = useState(false);
   const [purchasedTicketIds, setPurchasedTicketIds] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -198,7 +202,6 @@ export default function ProfileScreen() {
         <Text>Email: {currentUser.email ?? "-"}</Text>
         <Text>Phone: {formatPhone(currentUser.phone ?? "")}</Text>
         <Text>Balance: {currentUser.balance.toLocaleString()} coins</Text>
-        <Text>City: {currentUser.city ?? "-"}</Text>
         <Text>Birth Year: {currentUser.birth_year ?? "-"}</Text>
         <Text>Gender: {currentUser.gender ?? "-"}</Text>
 

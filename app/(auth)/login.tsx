@@ -25,7 +25,7 @@ export default function LoginPage() {
     currentUser,
     loading: authLoading,
     signInWithPassword,
-    refreshProfile,
+    waitForSignedIn,
   } = useAuthContext();
 
   // Local redirect guard flags
@@ -118,7 +118,7 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (redirecting) return; // avoid double submit
+    if (redirecting || submitting) return; // avoid double submit
 
     setError("");
     setSubmitting(true);
@@ -138,8 +138,6 @@ export default function LoginPage() {
       }
 
       const { error: loginError } = await signInWithPassword(email, password);
-      // Note: signInWithPassword triggers a hard reload on success.
-      // The effect above will redirect after the reload since query params persist.
 
       if (loginError) {
         setError(loginError.message);
@@ -155,9 +153,22 @@ export default function LoginPage() {
         return;
       }
 
-      // Fire-and-forget profile refresh (safe even if reload occurs first)
-      refreshProfile().catch(() => {});
+      // Wait for session to settle, then navigate (avoids "Hi Guest" after 2nd login)
       setEmptyFields(new Set());
+      setRedirecting(true);
+      await waitForSignedIn(); // resolves on SIGNED_IN or after ~1.2s fallback
+
+      const { dest, open, ticketId } = destInfo;
+      const isAuthRoute = dest.startsWith("/(auth)");
+      const isSameRoute = dest === pathname;
+      router.replace(
+        isAuthRoute || isSameRoute
+          ? "/"
+          : ({
+              pathname: dest,
+              params: open && ticketId ? { open, ticketId } : {},
+            } as never)
+      );
     } catch (err: any) {
       setError(err?.message ?? "Login failed");
     } finally {

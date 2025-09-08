@@ -29,11 +29,14 @@ export default function LogoutPage() {
 
       // defer navigation so header can re-render to "Guest" first
       const goHome = () => {
-        try {
-          router.replace("/");
-        } catch {
-          if (typeof window !== "undefined") window.location.assign("/");
-        }
+        // a small dwell before navigating (e.g., 600ms) so user sees the "Signing out..." state
+        setTimeout(() => {
+          try {
+            router.replace("/");
+          } catch {
+            if (typeof window !== "undefined") window.location.assign("/");
+          }
+        }, 600);
       };
 
       // next microtask + next frame + small timeout as belts-and-suspenders

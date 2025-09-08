@@ -52,7 +52,8 @@ export default function TicketFilters({
   sortOptions = SORT_OPTIONS,
 }: TicketFiltersProps) {
   const sortLabel = useMemo(
-    () => sortOptions.find((opt) => opt.value === sortOption)?.label ?? "Default",
+    () =>
+      sortOptions.find((opt) => opt.value === sortOption)?.label ?? "Default",
     [sortOptions, sortOption]
   );
 
@@ -65,9 +66,12 @@ export default function TicketFilters({
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];
-    if (selectedPriceRanges.length) parts.push(`${selectedPriceRanges.length} ranges`);
+    if (selectedPriceRanges.length)
+      parts.push(`${selectedPriceRanges.length} ranges`);
     if (dateRange?.from || dateRange?.to) {
-      parts.push(`${humanDate(dateRange.from)} – ${humanDate(dateRange.to)}`.trim());
+      parts.push(
+        `${humanDate(dateRange.from)} – ${humanDate(dateRange.to)}`.trim()
+      );
     }
     return parts.length ? parts.join(", ") : "All Tickets";
   }, [selectedPriceRanges, dateRange]);
@@ -105,7 +109,11 @@ export default function TicketFilters({
     else setDateRange({ from, to });
   };
 
-  const [panelPos, setPanelPos] = useState<{ top: number; left: number; width: number }>({
+  const [panelPos, setPanelPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  }>({
     top: 0,
     left: 0,
     width: 360,
@@ -119,12 +127,12 @@ export default function TicketFilters({
       if (!anchor) return;
 
       const rect = anchor.getBoundingClientRect();
-      const margin = 0; 
+      const margin = 0;
       const desired = Math.min(440, Math.max(320, rect.width));
       const vw = window.innerWidth || document.documentElement.clientWidth;
 
       const maxLeft = vw - desired - 8;
-      const left = Math.min(Math.max(8, rect.left), Math.max(8, maxLeft)) -10;
+      const left = Math.min(Math.max(8, rect.left), Math.max(8, maxLeft)) - 10;
 
       const top = rect.bottom + margin - 50;
 
@@ -135,7 +143,8 @@ export default function TicketFilters({
       const anchor = filterAnchorRef?.current as HTMLElement | null;
       const panel = document.getElementById("filter-dropdown-panel");
       if (!anchor || !panel) return;
-      if (anchor.contains(e.target as Node) || panel.contains(e.target as Node)) return;
+      if (anchor.contains(e.target as Node) || panel.contains(e.target as Node))
+        return;
       setFilterOpen(false);
     };
 
@@ -213,12 +222,19 @@ export default function TicketFilters({
             aria-expanded={sortOpen}
             aria-controls="sort-menu"
           >
-            <Ionicons name="funnel-outline" size={icon} style={{ marginRight: 4 }} />
-            <Text style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}>
+            <Ionicons
+              name="funnel-outline"
+              size={icon}
+              style={{ marginRight: 4 }}
+            />
+            <Text
+              style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}
+            >
               Sort by:
             </Text>
             <Text style={{ opacity: 0.85, fontSize: valueFont }}>
-              {sortOptions.find((o) => o.value === sortOption)?.label ?? "Default"}
+              {sortOptions.find((o) => o.value === sortOption)?.label ??
+                "Default"}
             </Text>
             <Ionicons
               name={sortOpen ? "chevron-up" : "chevron-down"}
@@ -231,7 +247,11 @@ export default function TicketFilters({
         <div className="toolbar__control">
           <div
             ref={filterAnchorRef}
-            style={{ position: "relative", display: "inline-flex", alignItems: "stretch" }}
+            style={{
+              position: "relative",
+              display: "inline-flex",
+              alignItems: "stretch",
+            }}
           >
             <Pressable
               onPress={() => setFilterOpen((prev) => !prev)}
@@ -247,11 +267,23 @@ export default function TicketFilters({
               aria-expanded={filterOpen}
               aria-controls="filter-menu"
             >
-              <Ionicons name="options-outline" size={icon} style={{ marginRight: 4 }} />
-              <Text style={{ fontWeight: "600", marginRight: 4, fontSize: labelFont }}>
+              <Ionicons
+                name="options-outline"
+                size={icon}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={{
+                  fontWeight: "600",
+                  marginRight: 4,
+                  fontSize: labelFont,
+                }}
+              >
                 Filter:
               </Text>
-              <Text style={{ opacity: 0.85, fontSize: valueFont }}>{filterSummary}</Text>
+              <Text style={{ opacity: 0.85, fontSize: valueFont }}>
+                {filterSummary}
+              </Text>
               <Ionicons
                 name={filterOpen ? "chevron-up" : "chevron-down"}
                 size={chevron}
@@ -265,23 +297,24 @@ export default function TicketFilters({
       {filterOpen && (
         <div
           id="filter-dropdown-panel"
-            role="dialog"
-            aria-label="Filter tickets"
-            className="toolbar__dropdown"
-            style={{
-              position: "fixed",
-              top: panelPos.top,
-              left: panelPos.left,
-              width: panelPos.width,
-              background: "#fff",
-              borderRadius: 10,
-              boxShadow: "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
-              padding: 10,
-              zIndex: 2000,
-              maxHeight: "70vh",
-              overflowY: "auto",
-              overflowX: "hidden",
-            }}
+          role="dialog"
+          aria-label="Filter tickets"
+          className="toolbar__dropdown"
+          style={{
+            position: "fixed",
+            top: panelPos.top,
+            left: panelPos.left,
+            width: panelPos.width,
+            background: "#fff",
+            borderRadius: 10,
+            boxShadow:
+              "0 6px 20px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.08)",
+            padding: 10,
+            zIndex: 2000,
+            maxHeight: "70vh",
+            overflowY: "auto",
+            overflowX: "hidden",
+          }}
         >
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Price ranges</div>
           <div
@@ -309,7 +342,12 @@ export default function TicketFilters({
                   type="checkbox"
                   checked={selectedPriceRanges.includes(opt.value)}
                   onChange={() => toggleRange(opt.value)}
-                  style={{ width: 14, height: 14, margin: 0, cursor: "pointer" }}
+                  style={{
+                    width: 14,
+                    height: 14,
+                    margin: 0,
+                    cursor: "pointer",
+                  }}
                 />
                 <span style={{ userSelect: "none" }}>{opt.label}</span>
               </label>
@@ -351,7 +389,7 @@ export default function TicketFilters({
                 whiteSpace: "nowrap",
               }}
             >
-              clear
+              Clear
             </button>
           </div>
 

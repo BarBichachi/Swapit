@@ -284,7 +284,7 @@ function AppDrawer() {
       />
       <Drawer.Screen
         name="(tickets)/add-ticket"
-        options={{ drawerItemStyle: { display: "none" } }}
+        options={{ drawerItemStyle: { display: "none" }, lazy: true }}
       />
       <Drawer.Screen
         name="(user)/updatedetails"

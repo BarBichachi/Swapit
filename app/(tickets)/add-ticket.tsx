@@ -1,8 +1,10 @@
 "use client";
 
+import { useAuthContext } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { EventForm, UnitForm } from "@/types/forms";
-import { useRouter } from "expo-router";
+import { useIsFocused } from "@react-navigation/native";
+import { usePathname, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ScrollView } from "react-native";
 
@@ -27,7 +29,14 @@ export default function AddTicketPage() {
   // ROUTER + AUTH STATE (declare hooks FIRST, no early returns)
   // ============================================================
   const router = useRouter();
-  const [authChecked, setAuthChecked] = useState(false);
+  const pathname = usePathname();
+  const isFocused = useIsFocused();
+  const {
+    currentUser,
+    loading: authLoading,
+    waitForSignedIn,
+  } = useAuthContext();
+  const [redirectingOut, setRedirectingOut] = useState(false);
 
   // ============================================================
   // EVENT FORM STATE
@@ -67,17 +76,20 @@ export default function AddTicketPage() {
   // AUTH GUARD EFFECT (runs once; no early return above)
   // ============================================================
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      const uid = data?.user?.id ?? null;
-      if (!uid) {
-        router.replace("/login?redirect=/add-ticket");
-        return;
-      }
-      setAuthChecked(true);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!isFocused) return; // wait for focus
+    if (authLoading) return; // wait for provider bootstrap
+    if (!currentUser.isLoggedIn) {
+      // redirect guests to login and stop rendering this page
+      setRedirectingOut(true);
+      router.replace({
+        pathname: "/(auth)/login",
+        params: { redirect: pathname, source: "guard" },
+      } as any);
+      return;
+    }
+    // logged in - ensure flag is cleared (in case we returned from /login without unmount)
+    setRedirectingOut(false);
+  }, [isFocused, authLoading, currentUser.isLoggedIn, pathname, router]);
 
   // ============================================================
   // HANDLERS: quantity & unit updates
@@ -332,13 +344,16 @@ export default function AddTicketPage() {
   // ============================================================
   // RENDER (matches Login form classes)
   // ============================================================
-  if (!authChecked) {
+  if (authLoading) {
     return (
       <div className="form-container">
         <h1 className="form-title">Loading…</h1>
       </div>
     );
   }
+
+  // If we're actively redirecting to /login, don't render the page UI.
+  if (redirectingOut) return null;
 
   return (
     <ScrollView>

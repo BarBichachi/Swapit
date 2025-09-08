@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { Ticket } from "@/types/ticket";
+import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type UnitRow = {
@@ -29,19 +30,12 @@ export const useTickets = () => {
     new Map()
   );
 
-  // Re-entrancy control for realtime bursts
+  // prevent refetch storms
   const fetchingRef = useRef(false);
   const pendingRef = useRef(false);
 
   const fetchTickets = useCallback(async () => {
     setLoading(true);
-    let cancelled = false;
-
-    // allow callers to cancel via returned function
-    const cancel = () => {
-      cancelled = true;
-    };
-
     try {
       const { data, error } = await supabase
         .from("ticket_units")
@@ -60,8 +54,6 @@ export const useTickets = () => {
         `
         )
         .eq("status", "active");
-
-      if (cancelled) return;
 
       if (error) {
         setTickets([]);
@@ -161,13 +153,10 @@ export const useTickets = () => {
       setGroups(nextGroups);
       setTicketIdMap(nextMap);
     } finally {
-      if (!cancelled) setLoading(false);
+      setLoading(false);
     }
-
-    return cancel;
   }, []);
 
-  // helper to avoid concurrent refetch storms from realtime
   const safeRefetch = useCallback(async () => {
     if (fetchingRef.current) {
       pendingRef.current = true;
@@ -185,13 +174,18 @@ export const useTickets = () => {
   useEffect(() => {
     let disposed = false;
 
-    // initial fetch
+    // Initial fetch
     (async () => {
       if (disposed) return;
       await fetchTickets();
+
+      // Warm-up refetches: cover replication/join lag or missed realtime during navigation
+      if (disposed) return;
+      setTimeout(() => !disposed && safeRefetch(), 300);
+      setTimeout(() => !disposed && safeRefetch(), 1500);
     })();
 
-    // realtime subscriptions
+    // Realtime subscriptions
     const channelTickets = supabase
       .channel("tickets-live")
       .on(
@@ -214,12 +208,42 @@ export const useTickets = () => {
       )
       .subscribe();
 
+    // Refetch when screen gains focus (React Navigation)
+    // (Works across native and web router)
+    const unsubFocus = () => {};
+    try {
+      // useFocusEffect must be used at component scope; fall back to visibility below in this effect
+    } catch {}
+
+    // Refetch on tab visibility (web)
+    const onVis = () => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState === "visible") {
+        !disposed && safeRefetch();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVis);
+    }
+
     return () => {
       disposed = true;
       supabase.removeChannel(channelTickets);
       supabase.removeChannel(channelEvents);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVis);
+      }
     };
   }, [fetchTickets, safeRefetch]);
+
+  // Proper focus refetch (needs to be called at top level)
+  useFocusEffect(
+    useCallback(() => {
+      // when this screen becomes focused
+      safeRefetch();
+      return () => {};
+    }, [safeRefetch])
+  );
 
   return { tickets, groups, loading, refetch: safeRefetch, ticketIdMap };
 };

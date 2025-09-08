@@ -318,7 +318,7 @@ export default function AddTicketPage() {
         .insert(payload);
       if (insUnitsErr) throw insUnitsErr;
 
-      router.push("/");
+      router.push({ pathname: "/", params: { refresh: "tickets" } } as any);
     } catch (err: any) {
       console.error(err);
       setError(err.message ?? "Failed to add tickets.");

@@ -66,8 +66,16 @@ export default function HomePage() {
   const params = useLocalSearchParams<{
     open?: string | string[];
     ticketId?: string | string[];
+    refresh?: string | string[];
   }>();
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (params.refresh === "tickets") {
+      refetch(); // refresh tickets list
+      router.replace("/");
+    }
+  }, [params.refresh, refetch, router]);
 
   useEffect(() => {
     const open = Array.isArray(params.open) ? params.open[0] : params.open;
